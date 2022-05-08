@@ -3048,6 +3048,7 @@ const packet_enum = {
     5: 'PACKET_PRE_ENTER_WORLD',
     6: 'PACKET_ENTER_WORLD2',
     7: 'PACKET_PING',
+    8: 'PACKET_ATTRIBUTE',
     9: 'PACKET_RPC'
 }
 
@@ -5332,6 +5333,7 @@ const attribute_enums = {
     4: 'removedEntities',
     5: 'rpcMapsByName',
     6: 'sortedUidsByType',
+    7: 'updatedEntityFlags',
 }
 
 game.network.connect2 = game.network.connect;
@@ -5411,7 +5413,9 @@ game.network.connect = options => {
                 sesWs.send(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
 
                 game.network.codec.decode = function(arrayBuffer) {
-                    const t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0), r = t.readUint8();
+                    const copy = arrayBuffer,
+                          t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0),
+                          r = t.readUint8();
                     let a;
                     let attributeMaps;
                     switch(r) {
@@ -5422,26 +5426,44 @@ game.network.connect = options => {
                             a = this.decodeEnterWorldResponse(t);
                             sesWs.send(arrayBuffer);
 
-                            attributeMaps = new dcodeIO.ByteBuffer(10000, true)
+                            attributeMaps = new dcodeIO.ByteBuffer()
                                 .writeUint8(8)
-                                .writeString(JSON.stringify(game.network.codec.attributeMaps));
-                            sesWs.send(attributeMaps/*.toArrayBuffer()*/);
+                                .writeUint32(1)
+                                .writeString(JSON.stringify(game.network.codec.attributeMaps))
+                                .flip();
+                            sesWs.send(attributeMaps.toArrayBuffer());
+
+                            attributeMaps = new dcodeIO.ByteBuffer()
+                                .writeUint8(8)
+                                .writeUint32(6)
+                                .writeString(JSON.stringify(game.network.codec.sortedUidsByType))
+                                .flip();
+                            sesWs.send(attributeMaps.toArrayBuffer());
+
+                            attributeMaps = new dcodeIO.ByteBuffer()
+                                .writeUint8(8)
+                                .writeUint32(3)
+                                .writeString(JSON.stringify(game.network.codec.entityTypeNames))
+                                .flip();
+                            sesWs.send(attributeMaps.toArrayBuffer());
                             break;
                         case 0:
+                            sesWs.send(copy);
                             a = this.decodeEntityUpdate(t);
-                            sesWs.send(arrayBuffer);
                             break;
                         case 7:
                             a = this.decodePing();
-
-                            attributeMaps = new dcodeIO.ByteBuffer(10000, true)
-                                .writeUint8(8)
-                                .writeString(JSON.stringify(game.network.codec.attributeMaps));
-                            sesWs.send(attributeMaps/*.toArrayBuffer()*/);
                             break;
                         case 9:
                             a = this.decodeRpc(t);
                             sesWs.send(arrayBuffer);
+
+                            attributeMaps = new dcodeIO.ByteBuffer()
+                                .writeUint8(8)
+                                .writeUint32(1)
+                                .writeString(JSON.stringify(game.network.codec.attributeMaps))
+                                .flip();
+                            sesWs.send(attributeMaps.toArrayBuffer());
                             break;
                     }
                     a.opcode = r;
@@ -5496,7 +5518,8 @@ game.network.connect = options => {
 
         game.network.codec.decode = function(arrayBuffer) {
             const t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0), r = t.readUint8();
-            let a;
+            let a = {};
+            let attribute_type;
             switch(r) {
                 case 5:
                     a = this.decodePreEnterWorldResponse(t);
@@ -5511,7 +5534,8 @@ game.network.connect = options => {
                     a = this.decodePing();
                     break;
                 case 8:
-                    this.attributeMaps = JSON.parse(t.readString(t.remaining()));
+                    attribute_type = t.readUint32();
+                    this[attribute_enums[attribute_type]] = JSON.parse(t.readString(t.remaining()));
                     break;
                 case 9:
                     a = this.decodeRpc(t);
@@ -5566,6 +5590,9 @@ game.network.connect = options => {
     };
     game.network.connect2(options);
 };
+
+
+
 
 
 
