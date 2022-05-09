@@ -5328,12 +5328,10 @@ function genUUID() {
 
 const attribute_enums = {
     1: 'attributeMaps',
-    2: 'absentEntitiesFlags',
-    3: 'entityTypeNames',
-    4: 'removedEntities',
-    5: 'rpcMapsByName',
-    6: 'sortedUidsByType',
-    7: 'updatedEntityFlags',
+    2: 'entityTypeNames',
+    3: 'rpcMaps',
+    4: 'rpcMapsByName',
+    5: 'sortedUidsByType',
 }
 
 game.network.connect2 = game.network.connect;
@@ -5342,65 +5340,6 @@ game.network.connect = options => {
         if (i.selected) { isUsingSession = true; sessionId = i.value; };
     }
     if (isUsingSession) {
-        const { encode, decode } = msgpack;
-/*         const encodeEntity = (object) => {
-            const buffer = new dcodeIO.ByteBuffer();
-            buffer.writeUint8(Object.keys(object).length);
-            for (const entity in object) {
-                buffer.writeUint32(entity);
-
-                const currentEntity = object[entity];
-                for (const attribute in currentEntity) {
-                    buffer.writeString(attribute);
-                    if (attribute == "position") {
-                        for (const axis in currentEntity[attribute]) {
-                            buffer.writeFloat32(axis);
-                        }
-                        continue;
-                    }
-                    switch(typeof currentEntity[attribute]) {
-                        case "number": buffer.writeFloat32(currentEntity[attribute]); break;
-                        case "string":
-                            buffer.writeUint8(currentEntity[attribute].length);
-                            buffer.writeString(currentEntity[attribute]);
-                            break;
-                        case "object": // exception for trees and stones attribute: hits
-                            buffer.writeUint8(currentEntity[attribute].length);
-                            for (const hit of currentEntity[attribute]) buffer.writeUint32(currentEntity[attribute]);
-                            break;
-                    }
-                }
-            }
-            buffer.flip();
-            return buffer;
-        }
-        const decodeEntity = (buffer) => {
-            const allEntities = {};
-            const numOfEntities = buffer.readUint8();
-            for (let i = 0; i < numOfEntities; i++) {
-                const entity = buffer.readUint32();
-                const currentEntity = allEntities[entity];
-                const attributeLoop = true;
-
-                let currentAttribute = "";
-                currentAttribute += buffer.readString(1);
-                switch(currentAttribute) {
-                    case "position":
-                        currentEntity[currentAttribute] = {};
-                        currentEntity[currentAttribute].x = buffer.readFloat32();
-                        currentEntity[currentAttribute].y = buffer.readFloat32();
-                        currentAttribute = "";
-                        break;
-                    case "hits":
-                        currentEntity[currentAttribute] = [];
-                        for (let _i = 0; _i < buffer.readUint8(); _i++) {
-                            const hit = buffer.readUint32();
-                            currentEntity[currentAttribute].push(hit);
-                        }
-                        break;
-                }
-            }
-        } */
         const simpleStringEncode = (str) => {
             const buffer = new dcodeIO.ByteBuffer().writeString(str).flip();
             return buffer.toArrayBuffer();
@@ -5408,16 +5347,25 @@ game.network.connect = options => {
         const sesWs = new WebSocket(`wss://${sessionUrl}`);
         sesWs.binaryType = "arraybuffer";
         if (document.querySelector("#recordSes").checked) {
-            // const key = genUUID();
             sesWs.onopen = () => {
                 sesWs.send(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
+
+                game.network.sendAttribute = function() {
+                    for (let attribute in attribute_enums) {
+                        const attributeMaps = new dcodeIO.ByteBuffer()
+                            .writeUint8(8)
+                            .writeUint32(parseInt(attribute))
+                            .writeString(JSON.stringify(this.codec[attribute_enums[attribute]]))
+                            .flip();
+                        sesWs.send(attributeMaps.toArrayBuffer());
+                    }
+                }
 
                 game.network.codec.decode = function(arrayBuffer) {
                     const copy = arrayBuffer,
                           t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0),
                           r = t.readUint8();
                     let a;
-                    let attributeMaps;
                     switch(r) {
                         case 5:
                             a = this.decodePreEnterWorldResponse(t);
@@ -5425,27 +5373,7 @@ game.network.connect = options => {
                         case 4:
                             a = this.decodeEnterWorldResponse(t);
                             sesWs.send(arrayBuffer);
-
-                            attributeMaps = new dcodeIO.ByteBuffer()
-                                .writeUint8(8)
-                                .writeUint32(1)
-                                .writeString(JSON.stringify(game.network.codec.attributeMaps))
-                                .flip();
-                            sesWs.send(attributeMaps.toArrayBuffer());
-
-                            attributeMaps = new dcodeIO.ByteBuffer()
-                                .writeUint8(8)
-                                .writeUint32(6)
-                                .writeString(JSON.stringify(game.network.codec.sortedUidsByType))
-                                .flip();
-                            sesWs.send(attributeMaps.toArrayBuffer());
-
-                            attributeMaps = new dcodeIO.ByteBuffer()
-                                .writeUint8(8)
-                                .writeUint32(3)
-                                .writeString(JSON.stringify(game.network.codec.entityTypeNames))
-                                .flip();
-                            sesWs.send(attributeMaps.toArrayBuffer());
+                            game.network.sendAttribute();
                             break;
                         case 0:
                             sesWs.send(copy);
@@ -5453,17 +5381,11 @@ game.network.connect = options => {
                             break;
                         case 7:
                             a = this.decodePing();
+                            game.network.sendAttribute();
                             break;
                         case 9:
                             a = this.decodeRpc(t);
                             sesWs.send(arrayBuffer);
-
-                            attributeMaps = new dcodeIO.ByteBuffer()
-                                .writeUint8(8)
-                                .writeUint32(1)
-                                .writeString(JSON.stringify(game.network.codec.attributeMaps))
-                                .flip();
-                            sesWs.send(attributeMaps.toArrayBuffer());
                             break;
                     }
                     a.opcode = r;
@@ -5471,34 +5393,6 @@ game.network.connect = options => {
                 }
             }
             sesWs.onmessage = (msg) => game.network.socket.send(msg.data);
-/*                 sesWs.send(
-                    encode({
-                        sessionId: sessionId,
-                        // verify: key,
-                        type: "init",
-                        o: "record"
-                    })
-                )
-                const oo = () => {
-                    game.network.addEntityUpdateHandler(data => {
-                        let newEntities = {};
-                        for (let i in data.entities) {
-                            if (!game.world.entities[i]) continue;
-                            newEntities[i] = {};
-                            for (let entry of Object.entries(game.world.entities[i].targetTick)) newEntities[i][entry[0]] = entry[1];
-                        };
-                        sesWs.send(
-                            encode({
-                                packet: 0,
-                                tick: data.tick,
-                                playerTick: game.ui.playerTick,
-                                entities: encode(newEntities),
-                            })
-                        )
-                    })
-                };
-                if (game.world.inWorld) oo();
-                else game.network.addEnterWorldHandler(oo); */
             sesWs.onclose = e => {
                 console.log(e.reason);
                 console.log("ws closed");
@@ -5545,12 +5439,6 @@ game.network.connect = options => {
             return a;
         }
         game.network.onMessage = (msg => {
-/*             if (!(msg.data instanceof ArrayBuffer)) {
-                msg = JSON.parse(msg.data);
-
-                if (msg.opcode === 69) return handleCustomData(msg);
-                return game.network.emitter.emit(packet_enum[msg.opcode], msg);
-            } */
 
             const decoded = game.network.codec.decode(msg.data);
             if (decoded.opcode === 5 || decoded.opcode === 7) return;
@@ -5559,33 +5447,6 @@ game.network.connect = options => {
         });
 
         sesWs.onopen = () => sesWs.send(simpleStringEncode(`g/${sessionId}`));
-//            let hasEnteredWorld = false;
-
-//            sesWs.send(simpleStringEncode(`g/${sessionId}`));
-/*             sesWs.onmessage = msg => {
-                const data = decode(msg.data);
-                if (!hasEnteredWorld) {
-                    hasEnteredWorld = true;
-                    game.world.onEnterWorld({allowed: true});
-                    game.ui.components.Intro.onEnterWorld({allowed: true});
-                    game.world.init();
-                };
-                data.entities = decode(data.entities);
-                game.renderer.lookAtPosition(data.playerTick.position.x, data.playerTick.position.y);
-                game.world.localPlayer = data.playerTick;
-                for (let uid in data.entities) {
-                    if (!game.world.entities[uid]) game.world.createEntity(data.entities[uid])
-                }
-            } */
-/*             sesWs.onclose = e => {
-                game.ui.components.Intro.onConnectionError();
-                console.log(e.reason);
-
-                getElem("hud-intro-play")[0].innerText = "";
-                getId('playspan').style.margin = '-130px 0px 0px 545px';
-                getId('playspan').style.display = "block";
-            };
-        }; */
         return;
     };
     game.network.connect2(options);
