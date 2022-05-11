@@ -8,7 +8,6 @@
 // @icon         https://cdn.discordapp.com/attachments/854376044522242059/952378215136108614/Macrocosmic_Modulation.webp
 // @grant        none
 // @require      https://raw.githubusercontent.com/dcodeIO/ByteBuffer.js/master/dist/bytebuffer.min.js
-// @require      https://greasyfork.org/scripts/423602-msgpack/code/msgpack.js
 // @noframes
 // ==/UserScript==
 
@@ -3041,8 +3040,8 @@ window.clearRecord = () => { window.macroActions.actions = []; };
 
 const packet_enum = {
     0: 'PACKET_ENTITY_UPDATE',
-    1: 'PACKET_PLAYER_COUNTER_UPDATE',
-    2: 'PACKET_SET_WORLD_DIMENSIONS',
+    1: 'PACKET_RPC2',
+    2: 'PACKET_ENTITY_UPDATE2',
     3: 'PACKET_INPUT',
     4: 'PACKET_ENTER_WORLD',
     5: 'PACKET_PRE_ENTER_WORLD',
@@ -5334,6 +5333,14 @@ const attribute_enums = {
     5: 'sortedUidsByType',
 }
 
+const uint16_enums = {
+    256: 'attributeMaps',
+    512: 'entityTypeNames',
+    768: 'rpcMaps',
+    1024: 'rpcMapsByName',
+    1280: 'sortedUidsByType',
+}
+
 game.network.connect2 = game.network.connect;
 game.network.connect = options => {
     for (let i of sessionElem.children) {
@@ -5350,54 +5357,123 @@ game.network.connect = options => {
             sesWs.onopen = () => {
                 sesWs.send(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
 
-                game.network.sendAttribute = function() {
+                game.network.codec.enterRpcBuffer = {};
+
+                game.network.codec.sendAttribute = function() {
                     for (let attribute in attribute_enums) {
                         const attributeMaps = new dcodeIO.ByteBuffer()
                             .writeUint8(8)
-                            .writeUint32(parseInt(attribute))
-                            .writeString(JSON.stringify(this.codec[attribute_enums[attribute]]))
+                            .writeUint16(parseInt(attribute))
+                            .writeString(JSON.stringify(this[attribute_enums[attribute]]))
                             .flip();
                         sesWs.send(attributeMaps.toArrayBuffer());
                     }
                 }
 
+                game.network.codec.sendEnterWorldResponse = function() {
+                    const enterWorld = this.enterWorldBuffer;
+                    enterWorld.offset = 9;
+                    enterWorld.writeUint32(game.world.replicator.currentTick.tick);
+                    enterWorld.offset = 0;
+                    sesWs.send(enterWorld.buffer);
+                }
+
                 game.network.codec.decode = function(arrayBuffer) {
-                    const copy = arrayBuffer,
-                          t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0),
+                    const t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0),
                           r = t.readUint8();
-                    let a;
+                    let a, rpc, isSetItem = false;
                     switch(r) {
                         case 5:
                             a = this.decodePreEnterWorldResponse(t);
                             break;
                         case 4:
-                            a = this.decodeEnterWorldResponse(t);
+                            this.enterWorldBuffer = t;
                             sesWs.send(arrayBuffer);
-                            game.network.sendAttribute();
+                            a = this.decodeEnterWorldResponse(t);
                             break;
                         case 0:
-                            sesWs.send(copy);
+                            sesWs.send(arrayBuffer);
                             a = this.decodeEntityUpdate(t);
                             break;
                         case 7:
                             a = this.decodePing();
-                            game.network.sendAttribute();
+                            sesWs.send(arrayBuffer);
                             break;
                         case 9:
+                            rpc = t.readUint32();
+                            if (rpc == 17 || rpc == 29 || rpc == 28 || rpc == 7 || rpc == 9 || rpc == 10 || rpc == 41 || rpc == 42) {
+                                if (rpc == 17) isSetItem = true;
+                                t.offset = 0;
+                                this.enterRpcBuffer[this.rpcMaps[rpc].name] = t;
+                            };
+                            t.offset = 1;
                             a = this.decodeRpc(t);
+                            if (isSetItem) {
+                                if (a.response.itemName == "Pickaxe") {
+                                    t.offset = 0;
+                                    t.limit = t.buffer.byteLength;
+                                    this.enterRpcBuffer["SetItem2"] = t;
+                                }
+                            }
                             sesWs.send(arrayBuffer);
                             break;
                     }
                     a.opcode = r;
                     return a;
                 }
+
+                game.network.connect2(options);
             }
-            sesWs.onmessage = (msg) => game.network.socket.send(msg.data);
+            sesWs.onmessage = (msg) => {
+                const buffer = new dcodeIO.ByteBuffer.wrap(msg.data, 'utf8', !0);
+                const packet = buffer.readUint8();
+                if (packet == 1) {
+                    for (let rpc in game.network.codec.enterRpcBuffer) {
+                        game.network.codec.enterRpcBuffer[rpc].offset = 0;
+                        sesWs.send(game.network.codec.enterRpcBuffer[rpc].toArrayBuffer());
+                    }
+                    return;
+                }
+                if (packet == 2) {
+                    const newEntities = {};
+                    for (let i in game.world.entities) {
+                        newEntities[i] = {};
+                        for (let entry of Object.entries(game.world.entities[i].targetTick)) newEntities[i][entry[0]] = entry[1];
+                    };
+                    const entityBuffer = new dcodeIO.ByteBuffer()
+                        .writeUint8(2)
+                        .writeString(JSON.stringify(newEntities))
+                        .flip();
+                    sesWs.send(entityBuffer.toArrayBuffer());
+                    return;
+                }
+                if (packet == 3) {
+                    buffer.offset = 2;
+                    const input = JSON.parse(buffer.readString(buffer.remaining()));
+                    if (input.worldX) {
+                        const reversedAim = game.inputPacketCreator.screenToYaw((input.worldX - game.ui.playerTick.position.x) * 100, (input.worldY - game.ui.playerTick.position.y) * 100);
+                        game.inputPacketCreator.lastAnyYaw = reversedAim;
+                    }
+                }
+                if (packet == 4) {
+                    game.network.codec.sendEnterWorldResponse();
+                    return;
+                }
+                if (packet == 7) {
+                    const _buffer = new dcodeIO.ByteBuffer().writeUint8(7).flip();
+                    sesWs.send(_buffer.toArrayBuffer());
+                    return;
+                }
+                if (packet == 8) {
+                    game.network.codec.sendAttribute();
+                    return;
+                }
+                game.network.socket.send(msg.data);
+            }
             sesWs.onclose = e => {
                 console.log(e.reason);
                 console.log("ws closed");
             };
-            game.network.connect2(options);
             return;
         }
         game.network.connected = false;
@@ -5405,15 +5481,16 @@ game.network.connect = options => {
         game.network.socket = sesWs;
         game.network.bindEventListeners();
 
-        game.network.sendPacket = (opcode, data) => {
+        game.network.sendPacket = function(opcode, data) {
             if (opcode === 7 || opcode === 4 || opcode === 6) return;
-            game.network.connected && game.network.socket.send(game.network.codec.encode(opcode, data));
+            this.connected && this.socket.send(this.codec.encode(opcode, data));
         }
 
         game.network.codec.decode = function(arrayBuffer) {
             const t = dcodeIO.ByteBuffer.wrap(arrayBuffer, 'utf8', !0), r = t.readUint8();
             let a = {};
             let attribute_type;
+            let newEntities;
             switch(r) {
                 case 5:
                     a = this.decodePreEnterWorldResponse(t);
@@ -5428,8 +5505,12 @@ game.network.connect = options => {
                     a = this.decodePing();
                     break;
                 case 8:
-                    attribute_type = t.readUint32();
-                    this[attribute_enums[attribute_type]] = JSON.parse(t.readString(t.remaining()));
+                    attribute_type = t.readUint16();
+                    this[uint16_enums[attribute_type]] = JSON.parse(t.readString(t.remaining()));
+                    break;
+                case 2:
+                    newEntities = JSON.parse(t.readString(t.remaining()));
+                    for (let uid in newEntities) game.world.createEntity(newEntities[uid]);
                     break;
                 case 9:
                     a = this.decodeRpc(t);
@@ -5439,21 +5520,27 @@ game.network.connect = options => {
             return a;
         }
         game.network.onMessage = (msg => {
-
+            // game.network.sendPingIfNecessary();
             const decoded = game.network.codec.decode(msg.data);
             if (decoded.opcode === 5 || decoded.opcode === 7) return;
 
             game.network.emitter.emit(packet_enum[decoded.opcode], decoded);
         });
 
+        game.network.addEnterWorldHandler(() => {
+            game.network.sendRpc({name: "BuyItem", itemName: "HatHorns", tier: 1});
+            game.network.sendRpc({name: "BuyItem", itemName: "PetCARL", tier: 1});
+            game.network.sendRpc({name: "BuyItem", itemName: "PetMiner", tier: 1});
+
+            const getRpc = new dcodeIO.ByteBuffer().writeUint8(1).flip();
+            game.network.socket.send(getRpc.toArrayBuffer());
+        })
+
         sesWs.onopen = () => sesWs.send(simpleStringEncode(`g/${sessionId}`));
         return;
     };
     game.network.connect2(options);
 };
-
-
-
 
 
 

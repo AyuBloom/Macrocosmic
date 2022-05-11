@@ -27,7 +27,6 @@ let sessions = {
 
 server.on('connection', function(ws) {
     let initMessage = true;
-    let enterWorldMessage = false;
     ws.on('message', msg => {
         if (initMessage) {
             initMessage = false;
@@ -43,23 +42,22 @@ server.on('connection', function(ws) {
             ws.open = true;
 
             if (ws.socketType == "r") {
-                const key = dataArray[2];
+//                const key = dataArray[2];
                 sessions[ws.sesId].player.key = dataArray[2];
                 sessions[ws.sesId].player.master = ws;
                 sessions[ws.sesId].recording = true;
                 ws.isRecorder = true;
-                enterWorldMessage = true;
             }
             if (ws.socketType == "g") {
                 ws.isFollower = true;
                 sessions[ws.sesId].followers.push(ws);
-                ws.send(sessions[ws.sesId].player.enterWorld);
+                const requestEntity = new ByteBuffer().writeUint8(2).flip();
+                const requestEnterWorld = new ByteBuffer().writeUint8(4).flip();
+                const requestAttribute = new ByteBuffer().writeUint8(8).flip();
+                sessions[ws.sesId].player.master.send(requestEnterWorld.toArrayBuffer());
+                sessions[ws.sesId].player.master.send(requestAttribute.toArrayBuffer());
+                sessions[ws.sesId].player.master.send(requestEntity.toArrayBuffer());
             }
-            return;
-        }
-        if (enterWorldMessage) {
-            enterWorldMessage = false;
-            sessions[ws.sesId].player.enterWorld = msg;
             return;
         }
         ws.data = msg;
@@ -70,6 +68,7 @@ server.on('connection', function(ws) {
             }
         }
         if (ws.isFollower) {
+            const buffer = new ByteBuffer.wrap(ws.data);
             sessions[ws.sesId].player.master.send(ws.data);
         }
     });
