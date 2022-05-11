@@ -1,6 +1,0 @@
-{
-    "dependencies": {
-      "bytebuffer": "^5.0.1",
-      "ws": "^8.5.0"
-    }
-  }
