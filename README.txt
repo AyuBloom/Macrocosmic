@@ -2,6 +2,7 @@
 version of script:
     - index.js: known stable version
     - beta.js: testing purposes, may be unstable
+standalone version of shared websocket is available as a dependent tampermonkey script.
 server instructions:
     first, you will need to install node.js @ https://nodejs.org/en/download/ (may not need to install chocolate)
     second, it is recommended to use visual studio [[ code ]] for easier editing of source.
