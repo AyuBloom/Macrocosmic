@@ -8,10 +8,13 @@
 // @icon         https://cdn.discordapp.com/attachments/854376044522242059/952378215136108614/Macrocosmic_Modulation.webp
 // @grant        none
 // @require      https://raw.githubusercontent.com/dcodeIO/ByteBuffer.js/master/dist/bytebuffer.min.js
+// @require      https://raw.githubusercontent.com/bgrins/javascript-astar/master/astar.js
 // @noframes
 // ==/UserScript==
 
 // i dont trust faker just yet: https://cdnjs.cloudflare.com/ajax/libs/Faker/3.1.0/faker.min.js
+
+window.disableFetching = true; // <- change this variable value to false if you want data fetch from baseSavingServer or sessionSaverPing
 
 let fontAwesome = document.createElement("script");
 fontAwesome.type = "text/javascript";
@@ -34,23 +37,30 @@ let themeColor = 'rgb(61 115 157 / 55%)';
 let imageArray1 = [`<img src="https://cdn.discordapp.com/attachments/871760287760519232/914408457443094568/EohccRVVoAAMjiu.png" style="margin: 0 0 -180px -300px;width: 256px;">`,
                    `<img src="/asset/image/entity/player/player-base.svg" style="width: 75px;margin: 0 500px -100px 0;"><img src="/asset/image/entity/player/player-spear-t7.svg" style="width: 192px;margin: 0 475px -95px 0;transform: rotate(152deg);"><img src="/asset/image/entity/pet-ghost/pet-ghost-t1-base.svg" style="width: 48px;margin: 0 300px -100px 0;transform: rotate(167deg);">`]
 let imageArray2 = [`http://zombs.io/asset/image/entity/neutral-camp/neutral-camp-base.svg`,
-                  `http://zombs.io/asset/image/map/map-stone.svg`,
-                  `http://zombs.io/asset/image/map/map-tree.svg`];
+                   `http://zombs.io/asset/image/map/map-stone.svg`,
+                   `http://zombs.io/asset/image/map/map-tree.svg`];
 let imageArray3 = [`<img src="https://cdn.discordapp.com/attachments/854376044522242059/958197528178851860/IMG_7807.png" style="margin: -600px 0 0 0;width: 512px;opacity: 0.4;display: flex;">`,
-                  `<img src="https://cdn.discordapp.com/attachments/854376044522242059/944905911959445514/IMG_7380.PNG" style="margin: -490px 0 0 0;width: 512px;opacity: 0.4;display: flex;" >`]
+                   `<img src="https://cdn.discordapp.com/attachments/854376044522242059/944905911959445514/IMG_7380.PNG" style="margin: -490px 0 0 0;width: 512px;opacity: 0.4;display: flex;" >`]
 let imageArray4 = [`https://cdn.discordapp.com/attachments/854376044522242059/958191674885025863/that_thing.png`,
-                   `https://cdn.discordapp.com/attachments/854376044522242059/972107389098659892/unknown.png`,
-                   `https://cdn.discordapp.com/attachments/854376044522242059/971335656833941524/FPFgLyBVcAUjLut.JPG`];
+                   `https://cdn.discordapp.com/attachments/854376044522242059/976736586492416020/97619989_p0.png`,
+                   `https://cdn.discordapp.com/attachments/854376044522242059/977776101176795166/hot.jpg`];
 let imageArray5 = [`https://cdn.discordapp.com/attachments/854376044522242059/971382818976452648/unknown.png`,
                    `https://cdn.discordapp.com/attachments/854376044522242059/962198506322411581/World_4_map.webp`];
 let imageArray6 = [`https://cdn.discordapp.com/attachments/854376044522242059/962230743197708308/World_4_icon.webp`,
                    `https://cdn.discordapp.com/attachments/854376044522242059/971383722840580146/unknown.png`]
+let imageArray7 = [`https://cdn.discordapp.com/attachments/854376044522242059/976742118661980160/Story_crimsonsolace.webp`,
+                   `https://cdn.discordapp.com/attachments/854376044522242059/925724425796616192/hmm.webp`];
 let nightTheme = `${getRandomItem(imageArray5)}`;
 let selectedNightTheme = imageArray6[0];
 if (nightTheme == `https://cdn.discordapp.com/attachments/854376044522242059/971382818976452648/unknown.png`) selectedNightTheme = imageArray6[1];
-let imageArrayAb1 = [`${getRandomItem(imageArray4)}`,
+
+let dayTheme = `${getRandomItem(imageArray4)}`;
+let selectedDayTheme = imageArray7[1];
+if (dayTheme == `https://cdn.discordapp.com/attachments/854376044522242059/976736586492416020/97619989_p0.png`) selectedDayTheme = imageArray7[0];
+
+let imageArrayAb1 = [dayTheme,
                      nightTheme];
-let imageArrayAb2 = [`https://cdn.discordapp.com/attachments/854376044522242059/925724425796616192/hmm.webp`,
+let imageArrayAb2 = [selectedDayTheme,
                      selectedNightTheme];
 
 let isDay,
@@ -79,7 +89,7 @@ let css2 = `
     border: 3px solid white;
     margin: -150px 0 0 500px;
     background-image: url(${imageArrayAb2[isDay ? 0 : 1]});
-    background-size: 145%;
+    background-size: 150%;
     padding: 0 0 0 0;
     background-position-y: center;
     background-position-x: center;
@@ -342,6 +352,13 @@ background-color: #4fa7ee;
     background-color: ${themeColor};
     border: 5px solid white;
 }
+.hud-settings-grid > div > .hud-settings-controls input[type=number]::-webkit-inner-spin-button,
+.hud-settings-grid > div > .hud-settings-controls input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    margin: 0;
+}
 .hud-respawn {
    opacity: 0.90
 }
@@ -559,6 +576,8 @@ styles.appendChild(document.createTextNode(css2));
 document.head.appendChild(styles);
 styles.type = "text/css";
 
+const sessionUrl = "OutgoingGraciousGames.ayu-bloom.repl.co";
+
 class bProxy {
     constructor() {}
     decode(msg) {
@@ -574,18 +593,14 @@ class bProxy {
     }
     get() {
         return new Promise(res => {
+            if (window.disableFetching) return res("disabled");
             const ws = new WebSocket('wss://baseSavingServer.ayu-bloom.repl.co/');
             ws.binaryType = "arraybuffer";
             ws.onerror = (err) => res("error");
-            ws.onopen = () => {
-                const buffer = new dcodeIO.ByteBuffer().writeString("requestDesign").flip();
-                ws.send(buffer.toArrayBuffer());
-            }
+            ws.onopen = () => ws.send(this.encode("requestDesign"));
             ws.onmessage = (msg) => {
                 // const message = this.decoder.decode(msg.data);
-                const buffer = dcodeIO.ByteBuffer.wrap(msg.data, 'utf8', !0),
-                      r = buffer.toString('utf8');
-                ws.close();
+                const r = this.decode(msg.data);
                 if (r.length == 0) res("empty");
                 else res(r.split('&'));
             }
@@ -594,11 +609,7 @@ class bProxy {
     post(req) {
         const ws = new WebSocket('wss://baseSavingServer.ayu-bloom.repl.co/');
         ws.binaryType = "arraybuffer";
-        ws.onopen = () => {
-            let buffer = new dcodeIO.ByteBuffer().writeString(req).flip();
-            ws.send(buffer.toArrayBuffer()); // ws.send(this.encoder.encode(req));
-            ws.close();
-        }
+        ws.onopen = () => ws.send(this.encode(req));
     }
     postAnalyzingData(data) {
         const ws = new WebSocket('wss://CurlyBouncyAutoresponder.ayu-bloom.repl.co/');
@@ -609,10 +620,23 @@ class bProxy {
             ws.close();
         }
     }
+    pingSession() {
+        return new Promise(res => {
+            const socket = new WebSocket(`wss://${sessionUrl}`);
+            socket.binaryType = "arraybuffer";
+            socket.onopen = () => socket.send(this.encode(`p/`));
+
+            socket.onmessage = (e) => {
+                const data = this.decode(e.data);
+                res(data);
+            }
+        })
+    }
     async map() {
         let data = await this.get();
         if (data === "error") return `<p><i class="fa fa-info-circle"></i> Failed to fetch data from server (host might be down).</p>`;
         if (data === "empty") return `<p><i class="fa fa-info-circle"></i> No data is fetched (server might be having no bases saved).</p>`;
+        if (data === "disabled") return `<p><i class="fa fa-info-circle"></i> Disabled fetching.</p>`;
 
         let _css = `${data.map((base, index) => {
             return `#ei2 > div > div > a:nth-child(${index + 1})::after {
@@ -626,11 +650,12 @@ class bProxy {
         document.head.appendChild(after);
 
         return data.map((entry, index) => {
-            const [base, title, description] = entry.split("|");
+            const [base, title, description, date] = entry.split("|");
             return `
             <a class="hud-e4-anchor" data-base="${base}" style="width: 90%;">
                 <strong>${title}</strong>
                 <span style="color: rgba(255, 255, 255, 0.4);font-size: 13px;display: flex;">${description ? description : "-"}</span>
+                <span style="color: rgba(255, 255, 255, 0.4);font-size: 13px;display: flex;justify-content: flex-end;transform: translate(0px, -40px);">${date ? new Date(parseInt(date)).toLocaleDateString() : "-"}</span>
             </a>`;
         }).join("");
     }
@@ -864,45 +889,17 @@ getElem("hud-zipp-grid3")[0].innerHTML = `
 
 <br>
 
-<button id="15i" class="btn btn-blue" style="width: 30%;">Enable AHRC</button>
+<button id="14i" class="btn btn-blue" style="width: 30%;margin: 0 0 5px 0;">Enable Wall Block</button>
 
-<button id="14i" class="btn btn-blue" style="width: 30%;border-bottom-right-radius: 0px;">Enable Wall Block</button>
+<button id="15i" class="btn btn-blue" style="width: 30%;margin: 0 0 5px 0;">Enable AHRC</button>
 
 <br>
 
-<a style="
-    display: inline-block;
-    height: 40px;
-    line-height: 40px;
-    padding: 0 20px;
-    background: #444;
-    color: #eee;
-    border: 0;
-    font-size: 14px;
-    vertical-align: top;
-    text-align: center;
-    text-decoration: none;
-    text-shadow: 0 1px 0 rgb(0 0 0 / 40%);
-    box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
-    border-radius: 4px;
-    transition: all 0.15s ease-in-out;
-"><input id="blockX" type="number" style="
-    background-color: rgba(0,0,0,0);
-    padding: 4px 0px 4px 13px;
-    border-radius: 8px;
-    color: rgba(255,255,255,0.7);
-    border: 2px solid white;
-    width: 48px;
-    height: 40px;
-" placeholder="w" value="3" class="btn"> x <input id="blockY" type="number" style="
-    background-color: rgba(0,0,0,0);
-    padding: 4px 0px 4px 13px;
-    border-radius: 8px;
-    color: rgba(255,255,255,0.7);
-    border: 2px solid white;
-    width: 48px;
-    height: 40px;
-" placeholder="h" value="3" class="btn"></a>
+<button id="16i" class="btn btn-blue" style="width: 30%;">Enable Auto Trapper</button>
+
+<select id="autoTrapOptions" class="btn" style="width: 30%;"><option value="pl" selected>Non-party</option><option value="al">All</option></select>
+
+<br>
 
 </div>
 
@@ -916,7 +913,7 @@ getElem("hud-zipp-grid3")[0].innerHTML = `
     </button>
 </div>
 
-<div style="margin: 80px 0 0 0;">
+<div style="margin: 75px 0 0 0;">
 
 <a class="hud-e4-anchor" data-item="record">
     <strong>Record Base</strong>
@@ -997,6 +994,7 @@ getElem("hud-zipp-grid3")[0].innerHTML = `
 </div>
 
 <div class="i2">
+
 ${getRandomItem(imageArray1)}
 
 <div style="display: flex;flex-direction: column;align-content: stretch;align-items: flex-end;margin: -40px 0 100px 0;">
@@ -1246,13 +1244,6 @@ getElem('hud-top-right')[0].insertAdjacentHTML("beforeend", `
 </div>
 `);
 
-getElem('hud-center-left')[0].insertAdjacentHTML("beforebegin", `
-<div class="refrsh">
-    <button class="btn btn white" style="top: 95.9%;left: 180px;position: absolute;z-index: 14;width: 40px;opacity: 0.8;padding: 1px 10px 10px 10px;" onclick="window.toggleZoS();">
-        <i class="fa fa-refresh"></i>
-    </button>
-</div>
-`);
 /*
 let refrsh = document.createElement('div');
 refrsh.classList.add('refrsh');
@@ -1267,6 +1258,7 @@ document.getElementsByClassName('hud-toolbar-inventory')[0].appendChild(refrsh);
 window.toggleZoS = () => {
     dimension -= 0.02;
     window.zoomonscroll = !window.zoomonscroll;
+    if (!window.zoomonscroll) window.resetZoom();
     let zs = getId("zsd");
     zs.style.display = zs.style.display == "none" ? "flex" : "none";
 };
@@ -1283,6 +1275,75 @@ window.resetZoom = () => {
     dimension = 1;
     window.zoom(dimension);
 };
+
+getElem('hud-settings-grid')[0].innerHTML = `
+<div id="settings1">
+<button id="settingsNext"
+    class="btn"
+    style="background-color: rgba(0, 0, 0, 0);box-shadow: none;height: 40px;padding: 0 0 0 0;width: 40px;margin: 0 -45px 0 0;transform: translate(500px, 130px);"
+    onclick="document.getElementById('settings1').style.display = 'none';
+             document.getElementById('settings2').style.display = 'block';
+             document.querySelector('#hud-menu-settings > h3').innerText = 'Logger';">
+    <i class="fa fa-arrow-right"></i>
+</button>
+<span>Wall Block</span>
+<ul class="hud-settings-controls" style="margin: 10px 0 0 0;display: inline;">
+<li>
+<input id="blockX" type="number" style="
+    background-color: rgba(0,0,0,0);
+    border-radius: 0px;
+    width: 40px;
+    height: 25px;
+    box-shadow: none;
+    border-bottom: 2px solid white;
+    font-size: large;
+    padding: 4px;
+" placeholder="w" value="3" class="btn"> x
+<input id="blockY" type="number" style="
+    background-color: rgba(0,0,0,0);
+    border-radius: 0px;
+    width: 40px;
+    height: 25px;
+    box-shadow: none;
+    border-bottom: 2px solid white;
+    font-size: large;
+    padding: 4px;
+" placeholder="h" value="3" class="btn"> Cells
+</li>
+</ul>
+<br>
+<span>Zoom</span>
+<ul class="hud-settings-controls" style="margin: 10px 0 0 0;display: inline;">
+<li>
+<input type="checkbox" id="switchZoom" value="false"> Zoom on scroll
+</li>
+</ul>
+</div>
+<div id="settings2" style="display: none;">
+<button id="settingsPrev"
+    class="btn"
+    style="background-color: rgba(0, 0, 0, 0);box-shadow: none;height: 40px;padding: 0 0 0 0;width: 40px;margin: 0 -40px 0 0;transform: translate(-10px, 130px);"
+    onclick="document.getElementById('settings1').style.display = 'block';
+             document.getElementById('settings2').style.display = 'none';
+             document.querySelector('#hud-menu-settings > h3').innerText = 'Settings';">
+    <i class="fa fa-arrow-left"></i>
+</button>
+<div id="loggerGrid" style="margin: -40px 0 0 20px;overflow-y: auto;"></div>
+</div>
+`;
+
+document.getElementById('switchZoom').addEventListener('change', window.toggleZoS);
+function addLog({parent, log}) {
+    const logElem = document.createElement('div');
+    logElem.innerHTML = `
+        <span style="font-size: smaller;opacity: 0.6;">${getClock()}</span>
+        <strong style="color: lightsteelblue;">${parent}</strong>
+        <p style="margin: 5px 0 0 0;">${log}</p>
+    `;
+    logElem.style.display = "block";
+    logElem.style.margin = '5px 0px 0px';
+    document.getElementById('loggerGrid').appendChild(logElem);
+}
 
 /* snap
 const items = document.getElementsByClassName('snapItem');
@@ -1357,6 +1418,7 @@ const options = {
     macro: false,
     stopMacro: false,
     moving: false,
+    diep: false,
 
     // socket options
     autofill: false,
@@ -1458,8 +1520,8 @@ const measureDistance = (obj1, obj2) => {
 };
 
 const isPointInCircle = (circle, point, radius) => {
-    if (Math.pow((point.x - circle.x), 2) +
-        Math.pow((point.y - circle.y), 2) <= Math.pow(radius, 2)) return true;
+    if ((point.x - circle.x)**2 +
+        (point.y - circle.y)**2 <= radius**2) return true;
     return false;
 }
 
@@ -1818,37 +1880,24 @@ game.network.addRpcHandler("Dead", (e) => {
      */
 });
 
-/* function sellAllByType(type) {
-    if (!game.ui.playerPartyCanSell) return;
-
-    let allBuildings = [];
-    for (let i in game.ui.buildings) {
-        if (game.ui.buildings[i].type == type) allBuildings.push(i);
-    }
-    let sellInterval = (value) => {
-        let _value = value;
-        if (window.sellBreak || value == allBuildings.length) {
-            console.trace(); console.log('break at this line', allBuildings);
-            return;
-        }
-        let target = allBuildings[value];
-        if (target !== undefined && !game.ui.buildings[target].dead) {
-            Game.currentGame.network.sendRpc({name: "DeleteBuilding", uid: parseInt(target)});
-            setTimeout(() => { sellInterval(_value + 1); }, 100);
-        }
-    }
-    sellInterval(0);
-}; */
-
 function sellAllByType(type) {
     if (!game.ui.playerPartyCanSell) return;
 
+    let allBuildings = [Infinity];
+    for (let i in game.ui.buildings) {
+        if (game.ui.buildings[i].type == type) allBuildings.push(i);
+    }
     let sellInterval = () => {
-        if (window.sellBreak) return;
-        let target = Object.values(game.ui.buildings).find(e => e.type == type);
-        if (target !== undefined) {
-            Game.currentGame.network.sendRpc({name: "DeleteBuilding", uid: target.uid});
-            setTimeout(() => { sellInterval(); }, 100);
+        allBuildings.shift();
+        if (window.sellBreak || allBuildings.length == 0) {
+            console.log('break at this line', allBuildings);
+            return;
+        }
+        const target = allBuildings[0];
+        if (target !== undefined && !game.ui.buildings[target]?.dead) {
+            Game.currentGame.network.sendRpc({name: "DeleteBuilding", uid: parseInt(target)});
+            console.log(allBuildings);
+            setTimeout(() => { sellInterval(); }, 150);
         }
     }
     sellInterval();
@@ -1909,6 +1958,7 @@ addFunctionToElem('7i2', 'moving', 'Navigator', 'btn-red?btn-blue',
                   () => { options.moving = false; });
 addFunctionToElem('10i2', 'recordMacro', 'Recorder', 'btn-red?btn-green', () => { window.macroActions.created = Date.now(); });
 addFunctionToElem('12i2', 'macro', 'Macro', 'btn-red?btn-blue', () => { window.macro(); }, () => { options.stopMacro = true; });
+
 addFunctionToElem('2i3', 'accept', 'Auto Accept', 'btn-red?btn-blue');
 addFunctionToElem('3i3', 'kick', 'Auto Kick', 'btn-red?btn-blue');
 addFunctionToElem('4i3', 'clearMsgs', 'Auto Clear', 'btn-red?btn-blue');
@@ -1975,89 +2025,38 @@ document.getElementsByClassName("tglraid")[0].addEventListener('click', function
     this.className = window.autoRaid ? "btn btn-red tglraid" : "btn btn-purple tglraid"
 })
 
-document.getElementById("6i3").addEventListener('click', function() {
-    window.ground();
-    this.className = "border-white";
-    if (window.groundtoggle) {
-        this.className = "border-red";
-    }
-})
-document.getElementById("7i3").addEventListener('click', function() {
-    window.npc();
-    this.className = "border-white";
-    if (window.npctoggle) {
-        this.className = "border-red";
-    }
-})
-document.getElementById("8i3").addEventListener('click', function() {
-    window.env();
-    this.className = "border-white";
-    if (window.envtoggle) {
-        this.className = "border-red";
-    }
-})
-document.getElementById("9i3").addEventListener('click', function() {
-    window.pjt();
-    this.className = "border-white";
-    if (window.pjttoggle) {
-        this.className = "border-red";
-    }
-})
-document.getElementById("10i3").addEventListener('click', function() {
-    window.everything();
-    this.className = "border-white";
-    if (window.everythingtoggle) {
-        this.className = "border-red";
-    }
-})
-document.getElementById("11i3").addEventListener('click', function() {
-    window.rndr();
-    this.className = "border-white";
-    if (window.rndrtoggle) {
-        this.className = "border-red";
-    }
-})
+const render_enum = {
+    1: "ground",
+    2: "npcs",
+    3: "scenery",
+    4: "projectiles",
+    5: "scene",
 
-window.ground = () => {
-    window.groundtoggle = !window.groundtoggle;
-    if (window.groundtoggle) {
-        game.renderer.ground.setVisible(false)
-    } else {
-        game.renderer.ground.setVisible(true)
+    6: "ground",
+    7: "npc",
+    8: "env",
+    9: "pjt",
+    10: "everything",
+    11: "rndr"
+}
+
+for (let i = 6; i < 12; i++) {
+    document.getElementById(`${i}i3`).addEventListener('click', function() {
+        window[`${render_enum[i]}`]();
+        this.className = "border-white";
+        if (window[`${render_enum[i]}toggle`]) {
+            this.className = "border-red";
+        }
+    })
+}
+
+for (let i = 1; i < 6; i++) {
+    window[render_enum[i + 5]] = () => {
+        window[`${render_enum[i + 5]}toggle`] = !window[`${render_enum[i + 5]}toggle`];
+        game.renderer[render_enum[i]].setVisible(window[`${render_enum[i + 5]}toggle`] ? false : true);
     }
 }
-window.npc = () => {
-    window.npctoggle = !window.npctoggle;
-    if (window.npctoggle) {
-        game.renderer.npcs.setVisible(false)
-    } else {
-        game.renderer.npcs.setVisible(true)
-    }
-}
-window.env = () => {
-    window.envtoggle = !window.envtoggle;
-    if (window.envtoggle) {
-        game.renderer.scenery.setVisible(false)
-    } else {
-        game.renderer.scenery.setVisible(true)
-    }
-}
-window.pjt = () => {
-    window.pjttoggle = !window.pjttoggle;
-    if (window.pjttoggle) {
-        game.renderer.projectiles.setVisible(false)
-    } else {
-        game.renderer.projectiles.setVisible(true)
-    }
-}
-window.everything = () => {
-    window.everythingtoggle = !window.everythingtoggle;
-    if (window.everythingtoggle) {
-        game.renderer.scene.setVisible(false)
-    } else {
-        game.renderer.scene.setVisible(true)
-    }
-}
+
 window.rndr = () => {
     window.rndrtoggle = !window.rndrtoggle;
     if (window.rndrtoggle) {
@@ -2345,9 +2344,35 @@ let requestedParty;
     getElem('hud-party-tabs-link')[1].onclick = () => { getId("privateHud").style.display = "none"; getId("privateTab").classList.remove("is-active"); };
 })();
 
+window.kickAll = () => {
+    if (game.ui.playerPartyMembers.length > 1) {
+        Game.currentGame.network.sendRpc({name: "KickParty", uid: Game.currentGame.ui.playerPartyMembers[1].playerUid});
+        setTimeout(window.kickAll, 1500);
+    };
+}
+
+window.giveSellToAll = () => {
+    let memberIndex = 1;
+    const sellLoop = () => {
+        if (memberIndex < 4) return;
+        game.network.sendRpc({name: "SetPartyMemberCanSell", uid: game.ui.playerPartyMembers[memberIndex].playerUid, canSell: 1});
+        memberIndex++;
+        setTimeout(sellLoop, 1500);
+    }
+    sellLoop();
+}
+
 game.ui.components.MenuParty._update = game.ui.components.MenuParty.update;
 game.ui.components.MenuParty.update = function() {
     game.ui.components.MenuParty._update();
+
+/*     if (game.ui.playerPartyLeader) {
+        document.querySelector("#hud-menu-party > div.hud-party-members > div > div").innerHTML = `
+        <a class="btn" style="width: 145px;" onclick="window.kickAll();">Give party sell</a>
+        <a class="btn btn-red">Kick all</a>
+        `;
+    } */
+
     const partyList = game.ui.getParties();
     for (const i in partyList) {
         game.ui.components.MenuParty.partyElems[`${partyList[i].partyId}`].innerHTML = `
@@ -2875,6 +2900,40 @@ window.searchWithName = (name) => {
     allResults.length > 0 ? console.log(allResults) : console.log('No results found!');
 };
 
+window.findPath = function(xTar, yTar) {
+    console.log(dimension);
+    const grid = [],
+          spacePerCell = 48 / dimension;
+    let player,
+        rowNum = 0,
+        columnNum = 0;
+    for (let yPos = spacePerCell; yPos < window.innerHeight; yPos += spacePerCell) {
+        columnNum++;
+        const row = [];
+        for (let xPos = spacePerCell; xPos < window.innerWidth; xPos += spacePerCell) {
+            rowNum++;
+            const { x, y } = game.renderer.screenToWorld(xPos, yPos);
+            if (x < 0 || y < 0) continue;
+            const cell = game.world.entityGrid.getCellIndexes(x, y, {width: 1, height: 1});
+            const entity = game.world.entityGrid.getEntitiesInCell(cell);
+            if (Object.keys(entity).length === 0) row.push('1');
+            else {
+                if (parseInt(Object.keys(entity)[0]) == game.world.myUid) player = {x: rowNum - 1, y: columnNum - 1};
+                row.push('0');
+            };
+        }
+        rowNum = 0;
+        for (let i in row) row[i] = parseInt(row[i]);
+
+        grid.push(row);
+    }
+    columnNum = 0;
+    const graph = new Graph(grid);
+
+    console.log(graph.grid[xTar][yTar]);
+    return astar.search(graph, graph.grid[player.y][player.x], graph.grid[xTar][yTar]);
+}
+
 window.goToPos = (x, y) => {
     const targetX = parseInt(x),
           targetY = parseInt(y);
@@ -2901,7 +2960,7 @@ window.goToPos = (x, y) => {
 
         if (reachedTargetX && reachedTargetY) {
             stop();
-            console.log(`done moving. (x: ${targetX}, y: ${targetY}, time took: ${timeInMs}ms)`);
+            console.log(`done moving. time took: ${timeInMs}ms`, {x: targetX, y: targetY});
             getId('7i2').click();
             return clearInterval(interval);
         }
@@ -3040,8 +3099,8 @@ window.clearRecord = () => { window.macroActions.actions = []; };
 
 const packet_enum = {
     0: 'PACKET_ENTITY_UPDATE',
-    1: 'PACKET_RPC2',
-    2: 'PACKET_ENTITY_UPDATE2',
+    1: 'PACKET_PLAYER_COUNTER_UPDATE',
+    2: 'PACKET_SET_WORLD_DIMENSIONS',
     3: 'PACKET_INPUT',
     4: 'PACKET_ENTER_WORLD',
     5: 'PACKET_PRE_ENTER_WORLD',
@@ -3157,12 +3216,27 @@ var emojiList = {
     idk: "https://cdn.discordapp.com/emojis/882513306164805642.gif?size=48",
 }
 
+const socketByUid = {
+    uuid: {},
+    getSocketByUuid(uid) {
+        return this.uuid[uid];
+    },
+    getSocketByUid(uid) {
+        return this[uid];
+    },
+    isSocketValid(uid) {
+        return (this[uid] ? true : false);
+    }
+};
 
-Game.currentGame.network.emitter.removeListener("PACKET_RPC", Game.currentGame.network.emitter._events.PACKET_RPC[1])
+Game.currentGame.network.emitter.removeListener("PACKET_RPC", Game.currentGame.network.emitter._events.PACKET_RPC[1]);
 const onMessageReceived = e => {
-    if (blockedNames.includes(e.displayName) || window.chatDisabled) { return; };
+    if (blockedNames.includes(e.displayName) || window.chatDisabled) return;
+    if (window.filterAlt) {
+        if (Object.keys(socketByUid).length > 0 && socketByUid.isSocketValid(e.uid)) return;
+    }
     let a = Game.currentGame.ui.getComponent("Chat"),
-        b = e.displayName.replace(/<(?:.|\n)*?>/gm, ''),
+        b = window.filterXSS(e.displayName) /* .replace(/<(?:.|\n)*?>/gm, '') */,
         c = e.message.replace(/<(?:.|\n)*?>/gm, '')
     .replace(/(?:f|F)uck/gi, `<img src="https://cdn.discordapp.com/emojis/907625398832070667.png?size=80" height="16" width="18" style="margin: 1px 0 0 0;"></img>`)
     .replace(/s[3e]x+/gi, `<img src="https://cdn.discordapp.com/emojis/953759638350872666.gif?size=80&quality=lossless" height="16" width="18" style="margin: 1px 0 0 0;"></img>`)
@@ -3170,16 +3244,10 @@ const onMessageReceived = e => {
     let arr = c.split(':');
 
     for (let i = 1; i < arr.length; i += 2) {
-        // console.log(arr[i]);
-        if (!emojiList[arr[i]]) {
-            // console.log(arr);
-            arr = [c];
-        } else {
-            arr[i] = `<img src="${emojiList[arr[i]]}" height="16" width="18" style="margin: 1px 0 0 0;"></img>`
-        };
+        (!emojiList[arr[i]]) ? (arr = [c]) : (arr[i] = `<img src="${emojiList[arr[i]]}" height="16" width="18" style="margin: 1px 0 0 0;"></img>`);
     }
 
-    let d = a.ui.createElement(`<div class="hud-chat-message"><a href="javascript:void(0);" onclick="window.blockPlayer(\`${e.displayName}\`)" style="color: red;">Block</a> <strong>${b}</strong> <small> - ${getClock()}</small>: ${arr.join(" ")}</div>`);
+    let d = a.ui.createElement(`<div class="hud-chat-message"><a href="javascript:void(0);" onclick="window.blockPlayer(\`${e.displayName}\`)" style="color: red;">Block</a><strong> ${b}</strong><small> - ${getClock()}</small>: ${arr.join(" ")}</div>`);
     a.messagesElem.appendChild(d);
     a.messagesElem.scrollTop = a.messagesElem.scrollHeight;
 };
@@ -3192,9 +3260,10 @@ game.world.removeEntity = (uid) => {
 }
 
 Game.currentGame.world._createEntity = Game.currentGame.world.createEntity;
-Game.currentGame.world.createEntity = (t) => {
-    if (Game.currentGame.world.entities[t.uid]) return;
-    Game.currentGame.world._createEntity(t);
+Game.currentGame.world.createEntity = function(t) {
+    if (this.entities[t.uid]) return;
+    this._createEntity(t);
+    if (socketByUid.uuid[t.name]) this.entities[t.uid].targetTick.name = `${socketByUid.uuid[t.name]}`;
 }
 
 Game.currentGame.network.addRpcHandler("LocalBuilding", buildings => {
@@ -3325,104 +3394,79 @@ let sipt = setInterval(() => {
 setTimeout(() => { clearInterval(sipt); }, 90);
 */
 
-window.diep = false;
+function isEven(number) {
+    return number % 2 === 0;
+}
+
+function isEntityOccupied(x, y, {w, h}) {
+    const cell = game.world.entityGrid.getCellIndexes(x, y, { width: 1, height: 1 });
+    const entity = game.world.entityGrid.getEntitiesInCell(cell);
+    return Object.keys(entity).length > 0;
+}
+
+function placeWallBlock(blockWidth, blockHeight, data, offset) {
+    let offsetFromTarget,
+        isOffsetUsed = !!offset;
+    isOffsetUsed && (offsetFromTarget = 48 * offset);
+    for (let x =
+         -((blockWidth -
+            (isEven(blockWidth) ? 0 : 1)) / 2) * 48;
+         x <= (blockWidth -
+               (isEven(blockWidth) ? 0 : 1)) / 2 * 48;
+         x += 48) {
+        for (let y =
+             -((blockHeight -
+                (isEven(blockHeight) ? 0 : 1)) / 2) * 48;
+             y <= (blockHeight -
+                   (isEven(blockHeight) ? 0 : 1)) / 2 * 48;
+             y += 48) {
+            if (isOffsetUsed) {
+                if (Math.abs(x) <= offsetFromTarget || Math.abs(y) <= offsetFromTarget) continue;
+            }
+            const posX = data.x + x,
+                  posY = data.y + y,
+                  shouldPlace = !isEntityOccupied(posX, posY, {w: 1, h: 1});
+            shouldPlace && game.network.sendPacket(9, {
+                name: "MakeBuilding",
+                type: "Wall",
+                x: data.x + x,
+                y: data.y + y,
+                yaw: 0
+            });
+        };
+    };
+}
+
+game.network.sendRpc = function(data) {
+    if (data.name === "MakeBuilding" && data.type === "Wall" && options.wallBlock) {
+//        console.log(data.x, data.y);
+        const blockWidth = document.querySelector('#blockX').valueAsNumber;
+        const blockHeight = document.querySelector('#blockY').valueAsNumber;
+        placeWallBlock(blockWidth, blockHeight, data);
+        return;
+    }; // xy
+    this.sendPacket(9, data);
+};
+
 game.network.addEntityUpdateHandler(() => {
-    if (window.diep === true) {
-        for (let i in game.world.entities) {
-            if (game.world.entities[i].entityClass === "PlayerEntity") {
-                if (game.world.entities[i].fromTick.partyId !== game.ui.playerPartyId) {
-                    if (game.world.entities[i].fromTick.position) {
-                        // this doesnt chek if the player is in the 800px range or not...
-                        const roundposx = Math.round(game.world.entities[i].fromTick.position.x);
-                        const roundposy = Math.round(game.world.entities[i].fromTick.position.y);
-                        if (roundposx < game.ui.playerTick.position.x + 300 &&
-                            roundposx > game.ui.playerTick.position.x - 300 &&
-                            roundposy > game.ui.playerTick.position.y - 300 &&
-                            roundposy < game.ui.playerTick.position.y + 300) {
-                            let offset = 48;
-                            let oldOffset = 48
-                            let earlyOffset = 48;
-                            const roundx = Math.round(game.world.entities[i].fromTick.position.x / 24) * 24;
-                            const roundy = Math.round(game.world.entities[i].fromTick.position.y / 24) * 24;
+    if (options.diep === true) {
+        for (let i of game.renderer.npcs.attachments) {
+            if (i.entityClass === "PlayerEntity" && (document.querySelector("#autoTrapOptions").value == "pl" ? i.targetTick.partyId !== game.ui.playerPartyId : i.targetTick.uid !== game.world.myUid)) {
+                if (isPointInCircle(i.targetTick.position, game.ui.playerTick.position, 500)) {
+                    const blockWidth = document.querySelector('#blockX').valueAsNumber;
+                    const blockHeight = document.querySelector('#blockY').valueAsNumber;
 
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx, y: roundy + offset, yaw: 0 });
-
-                            offset *= 2;
-
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + oldOffset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - oldOffset, y: roundy + offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + oldOffset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - oldOffset, y: roundy - offset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy - oldOffset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy - oldOffset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx + offset, y: roundy + oldOffset, yaw: 0 });
-                            game.network.sendRpc({ name: "MakeBuilding", type: "Wall", x: roundx - offset, y: roundy + oldOffset, yaw: 0 });
-                        };
-                    };
+                    const position = i.targetTick.position;
+                    const data = { x: Math.round(position.x / 24) * 24, y: Math.round(position.y / 24) * 24 };
+                    placeWallBlock(blockWidth, blockHeight, data);
                 };
             };
         };
     };
 });
 
-window.idkWhatToCallThis = new Set();
-
-function isEven(number) {
-    return number % 2 === 0;
-}
-
-game.network.sendRpc = (data) => {
-    if (data.name === "MakeBuilding" && data.type === "Wall" && options.wallBlock) {
-//        console.log(data.x, data.y);
-        const blockWidth = document.querySelector('#blockX').valueAsNumber;
-        const blockHeight = document.querySelector('#blockY').valueAsNumber;
-
-        for (let x =
-             -((blockWidth -
-               (isEven(blockWidth) ? 0 : 1)) / 2) * 48;
-             x <= (blockWidth -
-                   (isEven(blockWidth) ? 0 : 1)) / 2 * 48;
-             x += 48) {
-             for (let y =
-                  -((blockHeight -
-                    (isEven(blockHeight) ? 0 : 1)) / 2) * 48;
-                  y <= (blockHeight -
-                        (isEven(blockHeight) ? 0 : 1)) / 2 * 48;
-                  y += 48) {
-                 game.network.sendPacket(9, {
-                     name: "MakeBuilding",
-                     type: "Wall",
-                     x: data.x + x,
-                     y: data.y + y,
-                     yaw: 0
-                 });
-             };
-        };
-        return;
-    }; // xy
-    game.network.sendPacket(9, data);
-};
-
-function sellAllWallBlocks() {
-    for (let i of [...window.idkWhatToCallThis]) console.log(game.world.entities[game.world.entityGrid.getEntitiesInCell(i)].fromTick.model);
-}
-
 addFunctionToElem('14i', 'wallBlock', 'Wall Block', 'btn-red?btn-blue');
+addFunctionToElem('16i', 'diep', 'Auto Trapper', 'btn-red?btn-blue');
 
 let wallElem = document.createElement("a");
 wallElem.classList.add("hud-buff-bar-item");
@@ -3465,12 +3509,10 @@ shield.bindInputEvents = function () {
 shield.bindInputEvents();
 
 document.getElementsByClassName("hud-toolbar-item-shield")[0].addEventListener("click", function() {
-    if (game.ui.inventory.ZombieShield) {
-        Game.currentGame.network.sendRpc({ name: "BuyItem", itemName: "ZombieShield", tier: game.ui.inventory.ZombieShield.tier + 1});
-    } else {
-        Game.currentGame.network.sendRpc({ name: "BuyItem", itemName: "ZombieShield", tier: 1});
-    }
+    Game.currentGame.network.sendRpc({ name: "BuyItem", itemName: "ZombieShield", tier: game.ui.inventory.ZombieShield ? game.ui.inventory.ZombieShield.tier + 1 : 1});
 });
+
+game.ui.lastWaveScore = 0;
 Game.currentGame.network.addRpcHandler("DayCycle", function(e) {
     if (game.ui.inventory.ZombieShield) {
         if (game.ui.inventory.ZombieShield.tier === 10) {
@@ -3482,6 +3524,16 @@ Game.currentGame.network.addRpcHandler("DayCycle", function(e) {
     ticker.tickData = e;
     if (shield.style.display === "none" && !game.ui.inventory.ZombieShield) shield.style.display = "block";
     if (game.ui.playerTick && e.isDay) getactiveCommingbosswaves2() ? bossAlert.style.display = "block" : bossAlert.style.display = "none";
+    if (!e.isDay && game.ui.playerTick) {
+        const score = game.ui.playerTick.score - game.ui.lastWaveScore;
+        game.ui.lastWaveScore = game.ui.playerTick.score;
+        if (game.ui.playerTick?.wave > 0) {
+            addLog({
+                parent: "ScoreLogger",
+                log: `Score gained in wave ${game.ui.playerTick.wave}: ${score.toLocaleString()}`
+            })
+        }
+    }
 });
 
 /*
@@ -3574,18 +3626,20 @@ game.network.sendEnterWorld2 = () => {
 };
 
 game.network.addEnterWorldHandler((e) => {
-	setTimeout(() => {
-/* 		game.world.myUid = null;
-        game.world.getMyUid = () => {
-            return e.uid;
-        }; */
-        oldParty = game.ui.playerPartyMemebers;
-        oldPartyId = game.ui.getPlayerPartyId();
-	}, 500);
+    const serverTime = new Date(Date.now() - e.startingTick * (1000 / e.tickRate) + game.network.ping).toLocaleDateString();
+    addLog({
+        parent: "ServerTime",
+        log: `Server has been up since: ${serverTime} (local date format)`
+    })
     if (!e.allowed) {
         getElem("hud-intro-play")[0].innerText = "";
-        getId('playspan').style.margin = '-130px 0px 0px 545px';
+        getId('playspan').style.margin = '-100px 0px 0px 545px';
         getId('playspan').style.display = "block";
+    } else {
+        addLog({
+            parent: "EnterWorldHandler",
+            log: `Entered world with UID: ${e.uid}, ${e.players + 1} players in server.`
+        })
     }
     console.log('MBF 4', e);
 });
@@ -3594,7 +3648,7 @@ window.sendAitoAlt = () => {
     let aitoInterval = async() => {
         if (!options.aito) return;
         let { wasm, iframeId } = await fetchWasm('aitoWasm');
-        let ws = new WebSocket(`ws://${game.options.servers[game.options.serverId].hostname}:80`);
+        let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
         ws.binaryType = "arraybuffer";
         ws.onclose = () => {
             ws.isclosed = true;
@@ -3707,7 +3761,7 @@ window.playerFinder = () => {
         let ver = false;
         let playerData = game.ui.components.Leaderboard.leaderboardData[rank - 1];
         let { wasm, iframeId } = await fetchWasm(`finderWasm${timesTried}`);
-        let ws = new WebSocket(`ws://${game.options.servers[game.options.serverId].hostname}:80`);
+        let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
         ws.binaryType = "arraybuffer";
         ws.onclose = () => {
             ws.isclosed = true;
@@ -3766,6 +3820,9 @@ window.playerFinder = () => {
                 let partyUid = [];
                 for (let i2 of game.ui.playerPartyMembers) partyUid.push(i2.playerUid);
                 for (let i in ws.data.entities) {
+                    if (ws.data.entities[i].model == "Tree" || ws.data.entities[i].model == "Stone" || ws.data.entities[i].model == "NeutralCamp") {
+                        game.world.createEntity(ws.data.entities[i]);
+                    }
                     if (ws.data.entities[i].name) {
                         ver = true;
                         if (ws.data.entities[i].uid !== playerData.uid && ws.data.entities[i].uid !== ws.uid && partyUid.indexOf(ws.data.entities[i].uid) < 0) console.log(ws.data.entities[i]);
@@ -3848,6 +3905,7 @@ window.allSockets = [];
 window.workerList = [];
 let cloneTimeout = false;
 let targetPos = {x: 0, y: 0};
+let targetAim = {x: 0, y: 0};
 // window.locationList = {};
 
 let inull = true;
@@ -4252,10 +4310,12 @@ game.ui.components.Chat.sendMessage = (msg) => {
                     if (ws.buildings[i].type == towerType) ws.network.sendRpc({name: "UpgradeBuilding", uid: ws.buildings[i].uid});
                 }
             }
+            return;
         }
         if (msg.includes("!initPool")) {
             if (Number(msg.slice(10))) pHandler = new poolHandler(Number(msg.slice(10)));
             else pHandler = new poolHandler(Math.floor(window.allSockets.length / 4) * 4);
+            return;
         }
         if (msg.slice(0, 8) == "!addPool") {
             if (Number(msg.slice(9))) {
@@ -4265,18 +4325,19 @@ game.ui.components.Chat.sendMessage = (msg) => {
                     ws.fasterBuySpear = true;
                 }
             }
+            return;
         }
         if (msg.slice(0, 6) == "!break") {
             const targetSocket = window.allSockets[Number(msg.slice(7)) - 1];
             if (targetSocket) targetSocket.breakOut = true;
+            return;
         }
         if (msg.slice(0, 7) == "!!break") {
             const targetSocket = window.allSockets[Number(msg.slice(8)) - 1];
             if (targetSocket) targetSocket.breakOut = false;
+            return;
         }
-        else {
-            game.ui.components.Chat.sendMessage2(msg);
-        }
+        game.ui.components.Chat.sendMessage2(msg);
     }
     switch(msg) {
         case "!luid":
@@ -4319,6 +4380,11 @@ game.ui.components.Chat.sendMessage = (msg) => {
      */
 };
 
+window.breakAlt = function(index) {
+    window.allSockets[index].breakOut = !window.allSockets[index].breakOut;
+    document.getElementById(`breakAlt#${index}`).innerText = `${window.allSockets[index].breakOut ? "Unbreak" : "Break"}`;
+}
+
 window.sendWs = async() => {
 
     /*
@@ -4343,13 +4409,19 @@ window.sendWs = async() => {
     let { wasm, iframeId, removeWasm } = await fetchWasm();
     let isWasmDestroyed = false;
 
-    let ws = new WebSocket(`ws://${game.options.servers[game.options.serverId].hostname}:80`);
+    let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
     ws.binaryType = "arraybuffer";
 
     window.allSockets.push(ws);
     ws.cloneId = window.allSockets.length;
 
     ws.targetPos = {x: 0, y: 0};
+    ws.mouseData = {
+        yaw: 1,
+        worldX: 1,
+        worldY: 1,
+        distance: 1
+    };
     ws.aimingYaw = 1;
 
     function buildBaseFromStr(design) {
@@ -4370,12 +4442,24 @@ window.sendWs = async() => {
         };
     };
 
+    function getUUID() {
+        return ([1e2] + -1e1 + -4e3 + -8e1 + -1e8).replace(
+            /[018]/g, c => (
+                c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4
+            ).toString(16)
+        );
+    }
+
     ws.fasterBuySpear = false;
     ws.isCloseToTarget = false;
 
     ws.breakOut = false;
     ws.isOnControl = true;
 
+    ws.automove = false;
+    ws.lockAim = false;
+
+    ws.altName = getUUID();
     ws.moveOption = document.querySelector("#autoMoveOptions").value;
 
     ws.onclose = () => {
@@ -4430,6 +4514,9 @@ window.sendWs = async() => {
                 ws.lb = {};
                 ws.playerUid = game.world.getMyUid();
 
+                socketByUid[ws.uid] = ws;
+                socketByUid.uuid[ws.altName] = ws.cloneId;
+
                 this.sendPacket(6, {});
                 console.log('MBF 6');
 
@@ -4453,9 +4540,14 @@ window.sendWs = async() => {
         ws.network.initControls = function() {
             ws.mouseUp = 1;
             ws.mouseDown = 0;
-            ws.f = false;
             function mouseMoved(e, x, y, d) {
                 ws.aimingYaw = e;
+                ws.mouseData = {
+                    yaw: e,
+                    worldX: x,
+                    worldY: y,
+                    distance: d
+                }
                 if (ws.mouseDown && !ws.mouseUp) {
                     ws.network.sendInput({mouseMovedWhileDown: e, worldX: x, worldY: y, distance: d});
                 }
@@ -4466,6 +4558,23 @@ window.sendWs = async() => {
             document.addEventListener('mousemove', mousemove => {
                 if (ws.isOnControl) {
                     if (!ws.isclosed) {
+                        if (ws.lockAim) {
+                            if (ws.myPlayer?.position) {
+                                mouseMoved(
+                                    game.inputPacketCreator.screenToYaw(
+                                        (-ws.myPlayer.position.x + targetAim.x) * 100,
+                                        (-ws.myPlayer.position.y + targetAim.y) * 100
+                                    ),
+                                    Math.floor(targetAim.x),
+                                    Math.floor(targetAim.y),
+                                    Math.floor(game.inputPacketCreator.distanceToCenter(
+                                        (-ws.myPlayer.position.x + targetAim.x) * 100,
+                                        (-ws.myPlayer.position.y + targetAim.y) * 100
+                                    ) / 100)
+                                );
+                            }
+                            return;
+                        }
                         mousePosition3 = game.renderer.screenToWorld(mousemove.clientX, mousemove.clientY);
                         if (ws.myPlayer) {
                             if (ws.myPlayer.position) {
@@ -4486,8 +4595,6 @@ window.sendWs = async() => {
                     }
                 }
             })
-            let SendRpc = ws.network.sendRpc;
-            let SendInput = ws.network.sendInput;
             document.addEventListener('keydown', e => {
                 if (!ws.isclosed && ws.isOnControl) {
                     if (document.activeElement.tagName.toLowerCase() !== "input" && document.activeElement.tagName.toLowerCase() !== "textarea") {
@@ -4671,7 +4778,12 @@ window.sendWs = async() => {
                         if (!e.button) {
                             ws.mouseDown = 1;
                             ws.mouseUp = 0;
-                            ws.network.sendInput({mouseDown: ws.aimingYaw, worldX: Math.floor(mousePosition3.x), worldY: Math.floor(mousePosition3.y), distance: Math.floor(game.inputPacketCreator.distanceToCenter((-ws.myPlayer.position.x + mousePosition3.x)*100, (-ws.myPlayer.position.y + mousePosition3.y)*100)/100)});
+                            ws.network.sendInput({
+                                mouseDown: ws.mouseData.yaw,
+                                worldX: ws.mouseData.worldX,
+                                worldY: ws.mouseData.worldY,
+                                distance: ws.mouseData.distance
+                            });
                         }
                     }
                 }
@@ -4686,11 +4798,19 @@ window.sendWs = async() => {
                         if (!e.button) {
                             ws.mouseUp = 1;
                             ws.mouseDown = 0;
-                            ws.network.sendInput({mouseUp: 1, worldX: Math.floor(mousePosition3.x), worldY: Math.floor(mousePosition3.y), distance: Math.floor(game.inputPacketCreator.distanceToCenter((-ws.myPlayer.position.x + mousePosition3.x)*100, (-ws.myPlayer.position.y + mousePosition3.y)*100)/100)});
+                            ws.network.sendInput({
+                                mouseUp: 1,
+                                worldX: ws.mouseData.worldX,
+                                worldY: ws.mouseData.worldY,
+                                distance: ws.mouseData.distance
+                            });
                         }
                     }
                     if (ws.moveOption == "ecp") {
                         if (e.button == 2) targetPos = game.renderer.screenToWorld(game.ui.mousePosition.x,game.ui.mousePosition.y);
+                    }
+                    if (ws.lockAim) {
+                        if (e.button == 2) targetAim = game.renderer.screenToWorld(game.ui.mousePosition.x,game.ui.mousePosition.y);
                     }
                 }
             });
@@ -4759,7 +4879,7 @@ window.sendWs = async() => {
         if (ws.data.opcode === 4) ws.network.onEnterWorld(ws.data);
         if (ws.data.opcode === 5) {
             console.log('MBF 5'); altname++;
-            ws.network.sendPacket(4, {displayName: `${ws.cloneId}`, extra: ws.data.extra});
+            ws.network.sendPacket(4, {displayName: ws.altName/*`${ws.cloneId}`*/, extra: ws.data.extra});
             // game.world.myUid = null;
 
             setTimeout(() => {
@@ -4999,7 +5119,11 @@ window.sendWs = async() => {
                 document.getElementsByClassName('hud-map')[0].appendChild(altElem);
 
                 altDisplay.id = `alt${ws.cloneId}`;
-                altDisplay.innerHTML = `Socket #${ws.cloneId}, State: <strong style="color: green;">[Open]</strong>`;
+                altDisplay.innerHTML = `
+                    Socket #${ws.cloneId}, State:
+                    <strong style="color: green;">[Open]</strong>
+                    <a href="javascript:void(0);" style="margin: 5px 0 0 0;color: lightblue;" id="breakAlt#${ws.cloneId - 1}" onclick="window.breakAlt(${ws.cloneId - 1});">Break</a>
+                `;
                 document.getElementById("altstate").appendChild(altDisplay);
             };
         }
@@ -5284,27 +5408,22 @@ var getbosswaves = function () {
 
 let sessionElem = document.createElement('optgroup');
 sessionElem.innerHTML = `
-<option value="ses1">Session 1</option>
-<option value="ses2">Session 2</option>
-<option value="ses3">Session 3</option>
-<option value="ses4">Session 4</option>`;
+<option id="ses1Elem" value="ses1">Session 1 [-]</option>
+<option id="ses2Elem" value="ses2">Session 2 [-]</option>
+<option id="ses3Elem" value="ses3">Session 3 [-]</option>
+<option id="ses4Elem" value="ses4">Session 4 [-]</option>`;
 sessionElem.label = "Sessions";
 game.ui.components.Intro.serverElem.appendChild(sessionElem);
 
-let isUsingSession = false,
-    sessionId = null;
-let sessionUrl = "OutgoingGraciousGames.ayu-bloom.repl.co";
+!window.disableFetching && new bProxy().pingSession().catch().then(data => {
+    const sessions = JSON.parse(data);
+    for (let i in sessions) {
+        getId(`${i}Elem`).innerText = `Session ${i[3]} [${sessions[i].available ? "Empty" : "Recording"}]`;
+    }
+})
 
-JSON.safeStringify = (obj, indent = 2) => {
-    let cache = [];
-    const retVal = JSON.stringify(
-        obj, (key, value) =>
-        typeof value === "object" && value !== null ? cache.includes(value) ? undefined : cache.push(value) && value : value,
-        indent
-    );
-    cache = null;
-    return retVal;
-};
+var isUsingSession = false,
+    sessionId = null;
 
 document.querySelector("#recordSes").addEventListener('change', (e) => {
     if (e.target.checked) {
@@ -5341,21 +5460,48 @@ const uint16_enums = {
     1280: 'sortedUidsByType',
 }
 
+game.ui.components.Intro.onConnectionError = function (errorText = `We were unable to connect to the gameserver. Please try another server.`) {
+    errorText = errorText || `We were unable to connect to the gameserver. Please try another server.`;
+    this.connecting = !0x1;
+    this.connectionTimer && (clearInterval(this.connectionTimer), delete this.connectionTimer);
+    this.submitElem.innerHTML = 'Play';
+    this.serverElem.classList.add('has-error');
+    this.errorElem.style.display = 'block';
+    this.errorElem.innerText = errorText;
+}
+
 game.network.connect2 = game.network.connect;
+
+function simpleStringEncode(str) {
+    const buffer = new dcodeIO.ByteBuffer().writeString(str).flip();
+    return buffer.toArrayBuffer();
+}
+
 game.network.connect = options => {
     for (let i of sessionElem.children) {
         if (i.selected) { isUsingSession = true; sessionId = i.value; };
     }
     if (isUsingSession) {
-        const simpleStringEncode = (str) => {
-            const buffer = new dcodeIO.ByteBuffer().writeString(str).flip();
-            return buffer.toArrayBuffer();
-        }
         const sesWs = new WebSocket(`wss://${sessionUrl}`);
         sesWs.binaryType = "arraybuffer";
+
+        sesWs.isOpen = false;
+
+        sesWs.onclose = e => {
+            sesWs.isOpen = false;
+            game.ui.components.Intro.onConnectionError(e.reason);
+            getElem("hud-intro-play")[0].innerText = "";
+            getId('playspan').style.margin = '-100px 0px 0px 545px';
+            getId('playspan').style.display = "block";
+        }
+
         if (document.querySelector("#recordSes").checked) {
             sesWs.onopen = () => {
-                sesWs.send(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
+                sesWs.isOpen = true;
+                sesWs.sendPacket = function(packet) {
+                    this.isOpen && this.send(packet);
+                }
+                sesWs.sendPacket(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
 
                 game.network.codec.enterRpcBuffer = {};
 
@@ -5375,7 +5521,20 @@ game.network.connect = options => {
                     enterWorld.offset = 9;
                     enterWorld.writeUint32(game.world.replicator.currentTick.tick);
                     enterWorld.offset = 0;
-                    sesWs.send(enterWorld.buffer);
+                    sesWs.sendPacket(enterWorld.buffer);
+                }
+
+                game.network.codec.sendCurrentEntities = function() {
+                    const newEntities = {};
+                    for (let i in game.world.replicator.currentTick.entities) {
+                        newEntities[i] = {};
+                        for (let entry of Object.entries(game.world.entities[i].targetTick)) newEntities[i][entry[0]] = entry[1];
+                    };
+                    const entityBuffer = new dcodeIO.ByteBuffer()
+                        .writeUint8(2)
+                        .writeString(JSON.stringify(newEntities))
+                        .flip();
+                    sesWs.sendPacket(entityBuffer.toArrayBuffer(true));
                 }
 
                 game.network.codec.decode = function(arrayBuffer) {
@@ -5388,16 +5547,15 @@ game.network.connect = options => {
                             break;
                         case 4:
                             this.enterWorldBuffer = t;
-                            sesWs.send(arrayBuffer);
+                            sesWs.sendPacket(arrayBuffer);
                             a = this.decodeEnterWorldResponse(t);
                             break;
                         case 0:
-                            sesWs.send(arrayBuffer);
+                            sesWs.sendPacket(arrayBuffer);
                             a = this.decodeEntityUpdate(t);
                             break;
                         case 7:
                             a = this.decodePing();
-                            sesWs.send(arrayBuffer);
                             break;
                         case 9:
                             rpc = t.readUint32();
@@ -5415,7 +5573,7 @@ game.network.connect = options => {
                                     this.enterRpcBuffer["SetItem2"] = t;
                                 }
                             }
-                            sesWs.send(arrayBuffer);
+                            sesWs.sendPacket(arrayBuffer);
                             break;
                     }
                     a.opcode = r;
@@ -5430,24 +5588,15 @@ game.network.connect = options => {
                 if (packet == 1) {
                     for (let rpc in game.network.codec.enterRpcBuffer) {
                         game.network.codec.enterRpcBuffer[rpc].offset = 0;
-                        sesWs.send(game.network.codec.enterRpcBuffer[rpc].toArrayBuffer());
+                        sesWs.sendPacket(game.network.codec.enterRpcBuffer[rpc].toArrayBuffer());
                     }
                     return;
                 }
-                if (packet == 2) {
-                    const newEntities = {};
-                    for (let i in game.world.entities) {
-                        newEntities[i] = {};
-                        for (let entry of Object.entries(game.world.entities[i].targetTick)) newEntities[i][entry[0]] = entry[1];
-                    };
-                    const entityBuffer = new dcodeIO.ByteBuffer()
-                        .writeUint8(2)
-                        .writeString(JSON.stringify(newEntities))
-                        .flip();
-                    sesWs.send(entityBuffer.toArrayBuffer());
+                if (packet == 4) {
+                    game.network.codec.sendCurrentEntities();
                     return;
                 }
-                if (packet == 3) {
+                if (packet == 3 && window.seeInput) {
                     buffer.offset = 2;
                     const input = JSON.parse(buffer.readString(buffer.remaining()));
                     if (input.worldX) {
@@ -5455,13 +5604,18 @@ game.network.connect = options => {
                         game.inputPacketCreator.lastAnyYaw = reversedAim;
                     }
                 }
-                if (packet == 4) {
+                if (packet == 2) {
                     game.network.codec.sendEnterWorldResponse();
+                    const optionsBuffer = new dcodeIO.ByteBuffer()
+                        .writeUint8(1)
+                        .writeString(JSON.stringify(game.network.connectionOptions))
+                        .flip();
+                    sesWs.sendPacket(optionsBuffer.toArrayBuffer());
                     return;
                 }
                 if (packet == 7) {
                     const _buffer = new dcodeIO.ByteBuffer().writeUint8(7).flip();
-                    sesWs.send(_buffer.toArrayBuffer());
+                    sesWs.sendPacket(_buffer.toArrayBuffer());
                     return;
                 }
                 if (packet == 8) {
@@ -5470,10 +5624,6 @@ game.network.connect = options => {
                 }
                 game.network.socket.send(msg.data);
             }
-            sesWs.onclose = e => {
-                console.log(e.reason);
-                console.log("ws closed");
-            };
             return;
         }
         game.network.connected = false;
@@ -5482,7 +5632,8 @@ game.network.connect = options => {
         game.network.bindEventListeners();
 
         game.network.sendPacket = function(opcode, data) {
-            if (opcode === 7 || opcode === 4 || opcode === 6) return;
+            if (opcode === 4 || opcode === 6) return;
+            if (opcode === 7 && !game.world.inWorld) return;
             this.connected && this.socket.send(this.codec.encode(opcode, data));
         }
 
@@ -5509,8 +5660,11 @@ game.network.connect = options => {
                     this[uint16_enums[attribute_type]] = JSON.parse(t.readString(t.remaining()));
                     break;
                 case 2:
-                    newEntities = JSON.parse(t.readString(t.remaining()));
+                    newEntities = JSON.parse(t.toString('utf8'));
                     for (let uid in newEntities) game.world.createEntity(newEntities[uid]);
+                    break;
+                case 1:
+                    game.network.connectionOptions = JSON.parse(t.readString(t.remaining()));
                     break;
                 case 9:
                     a = this.decodeRpc(t);
@@ -5520,7 +5674,7 @@ game.network.connect = options => {
             return a;
         }
         game.network.onMessage = (msg => {
-            // game.network.sendPingIfNecessary();
+            game.network.sendPingIfNecessary();
             const decoded = game.network.codec.decode(msg.data);
             if (decoded.opcode === 5 || decoded.opcode === 7) return;
 
@@ -5528,20 +5682,16 @@ game.network.connect = options => {
         });
 
         game.network.addEnterWorldHandler(() => {
-            game.network.sendRpc({name: "BuyItem", itemName: "HatHorns", tier: 1});
-            game.network.sendRpc({name: "BuyItem", itemName: "PetCARL", tier: 1});
-            game.network.sendRpc({name: "BuyItem", itemName: "PetMiner", tier: 1});
+            game.network.sendPing({nonce: 0});
 
             const getRpc = new dcodeIO.ByteBuffer().writeUint8(1).flip();
             game.network.socket.send(getRpc.toArrayBuffer());
         })
 
-        sesWs.onopen = () => sesWs.send(simpleStringEncode(`g/${sessionId}`));
+        sesWs.onopen = () => sesWs.send(simpleStringEncode(`g/${sessionId}/${genUUID()}`));
         return;
     };
     game.network.connect2(options);
 };
-
-
 
 
