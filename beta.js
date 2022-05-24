@@ -1318,8 +1318,23 @@ getElem('hud-settings-grid')[0].innerHTML = `
 <input type="checkbox" id="switchZoom" value="false"> Zoom on scroll
 </li>
 </ul>
+<br></br>
+<span>Player Annotation</span>
+<ul class="hud-settings-controls" style="margin: 10px 0 0 0;display: inline;">
+<li>
+<input type="color" id="ync" style="
+    height: 40px;
+    width: 40px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border: none;
+    position: absolute;
+    transform: translate(0px, -25px);"
+    onchange="window.customColor();" />
+</li>
+</ul>
 </div>
-<div id="settings2" style="display: none;">
+
+<div id="settings2" style="display: none;overflow: hidden;">
 <button id="settingsPrev"
     class="btn"
     style="background-color: rgba(0, 0, 0, 0);box-shadow: none;height: 40px;padding: 0 0 0 0;width: 40px;margin: 0 -40px 0 0;transform: translate(-10px, 130px);"
@@ -1328,22 +1343,56 @@ getElem('hud-settings-grid')[0].innerHTML = `
              document.querySelector('#hud-menu-settings > h3').innerText = 'Settings';">
     <i class="fa fa-arrow-left"></i>
 </button>
-<div id="loggerGrid" style="margin: -40px 0 0 20px;overflow-y: auto;"></div>
+<div id="loggerGrid" num-of-children="0" num-of-removed-children="0" style="margin: -40px 0 0 30px;overflow-y: auto;height: 360px;zoom: 80%;"></div>
+<p id="removedXNumOfLog" style="font-size: small;opacity: 0.4;">removed 0 out of 0 elements</p>
 </div>
 `;
 
+
+getElem('hud-settings-grid')[0].style.overflow = "hidden";
 document.getElementById('switchZoom').addEventListener('change', window.toggleZoS);
-function addLog({parent, log}) {
-    const logElem = document.createElement('div');
+const log_enum = {
+    trace: '#0000ff',
+    debug: '#00ff00',
+    info: '#00ffff',
+    warn: '#ffff00',
+    error: '#ff0000'
+};
+function addLog({parent, log, type}) {
+    const logElem = document.createElement('div'),
+          loggerGrid = getId('loggerGrid'),
+          children = [...loggerGrid.children];
+    let numOfChildren = parseInt(loggerGrid.getAttribute('num-of-children')),
+        numOfRemovedChildren = parseInt(loggerGrid.getAttribute('num-of-removed-children'));
+
     logElem.innerHTML = `
         <span style="font-size: smaller;opacity: 0.6;">${getClock()}</span>
         <strong style="color: lightsteelblue;">${parent}</strong>
-        <p style="margin: 5px 0 0 0;">${log}</p>
+        <small style="color: ${log_enum[type]}; opacity: 0.4;">[${type}]</small>
+        <p style="margin: 5px 0 0 0;word-break: break-word;">${log}</p>
     `;
     logElem.style.display = "block";
     logElem.style.margin = '5px 0px 0px';
-    document.getElementById('loggerGrid').appendChild(logElem);
+
+    loggerGrid.appendChild(logElem);
+    loggerGrid.setAttribute('num-of-children', `${++numOfChildren}`);
+
+    if (children.length > 1000) {
+        children[0].remove();
+        loggerGrid.setAttribute('num-of-removed-children', `${++numOfRemovedChildren}`);
+    }
+
+    getId('removedXNumOfLog').innerText = `removed ${numOfRemovedChildren} out of ${numOfChildren} elements`;
 }
+
+window.yncv ? document.getElementById("ync").value = window.yncv : false;
+
+window.customColor = function() {
+    let yncv = document.getElementById("ync").value;
+    let hr = hexToRgb(yncv);
+    game.world.localPlayer.entity.currentModel.nameEntity.setColor(hr[0], hr[1], hr[2]);
+    window.yncv = yncv;
+};
 
 /* snap
 const items = document.getElementsByClassName('snapItem');
@@ -1433,6 +1482,13 @@ const options = {
         closestAlt: undefined,
     }
 }
+
+const playerCondition = {
+    ping: {
+        isOnCoolDown: false,
+        ping: 0,
+    }
+};
 
 let getRss = false;
 let allowed1 = true;
@@ -1807,6 +1863,26 @@ Game.currentGame.network.addEntityUpdateHandler((eventData) => {
     if (!getRss) allowed1 = false;
 })
 
+game.network.onPing = function () {
+    const pingCompletion = new Date();
+    this.ping = (pingCompletion.getTime() - this.pingStart.getTime()) / 0x2;
+    this.pingStart = null;
+    this.pingCompletion = pingCompletion;
+
+    playerCondition.ping.ping = this.ping;
+    if (this.ping > 1000) {
+        if (!playerCondition.ping.isOnCooldown) {
+            playerCondition.ping.isOnCooldown = true;
+            setTimeout(() => { playerCondition.ping.isOnCooldown = false; }, 1200000);
+            addLog({
+                type: 'warn',
+                parent: 'PingHandler',
+                log: 'Socket is receiving ping more than 1000ms, pay attention!'
+            });
+        }
+    }
+}
+
 document.addEventListener("keydown", e => {
     if(document.activeElement.tagName.toLowerCase() !== "input" && document.activeElement.tagName.toLowerCase() !== "textarea") {
         if (e.key == '-') {
@@ -1861,6 +1937,14 @@ Game.currentGame.ui._events.playerPetTickUpdate.push(pet => {
 
 game.ui._events.playerTickUpdate.push(player => {
     if (options.heal && (player.health / player.maxHealth) * 100 <= 50) healPlayer();
+    if (!options.frss) return;
+    const resources = ["wood", "stone", "gold"];
+    const rc = game.ui.components.Resources;
+    for (const i = 0; i < resources.length; i++) {
+        const rs = resources[i];
+        rc[`${rs}Elem`].innerHTML = Math.round(player[rs]).toLocaleString("en");
+    };
+    rc.tokensElem.innerHTML = Math.round(player.token).toLocaleString("en");
 });
 
 game.network.addRpcHandler("PartyApplicant", e => {
@@ -2961,6 +3045,11 @@ window.goToPos = (x, y) => {
         if (reachedTargetX && reachedTargetY) {
             stop();
             console.log(`done moving. time took: ${timeInMs}ms`, {x: targetX, y: targetY});
+            addLog({
+                type: "debug",
+                parent: "NavigatorHandler",
+                log: `Navigated successfully to (${targetX}, ${targetY}) in ${timeInMs}ms.`
+            });
             getId('7i2').click();
             return clearInterval(interval);
         }
@@ -3529,6 +3618,7 @@ Game.currentGame.network.addRpcHandler("DayCycle", function(e) {
         game.ui.lastWaveScore = game.ui.playerTick.score;
         if (game.ui.playerTick?.wave > 0) {
             addLog({
+                type: 'info',
                 parent: "ScoreLogger",
                 log: `Score gained in wave ${game.ui.playerTick.wave}: ${score.toLocaleString()}`
             })
@@ -3623,13 +3713,15 @@ game.network.addPreEnterWorldHandler(() => console.log('MBF 5'));
 game.network.sendEnterWorld2 = () => {
     console.log('MBF 6');
     game.network.sendPacket(6, {});
+    game.ui.components.MenuShop.checkSocialLinks();
 };
 
 game.network.addEnterWorldHandler((e) => {
     const serverTime = new Date(Date.now() - e.startingTick * (1000 / e.tickRate) + game.network.ping).toLocaleDateString();
     addLog({
+        type: 'debug',
         parent: "ServerTime",
-        log: `Server has been up since: ${serverTime} (local date format)`
+        log: `Server has been up since: ${serverTime} (local date format).`
     })
     if (!e.allowed) {
         getElem("hud-intro-play")[0].innerText = "";
@@ -3637,6 +3729,7 @@ game.network.addEnterWorldHandler((e) => {
         getId('playspan').style.display = "block";
     } else {
         addLog({
+            type: 'info',
             parent: "EnterWorldHandler",
             log: `Entered world with UID: ${e.uid}, ${e.players + 1} players in server.`
         })
@@ -3838,7 +3931,11 @@ window.playerFinder = () => {
                         game.ui.components.PopupOverlay.showHint(`Found player at x: ${window.playerX}, y: ${window.playerY}.`);
                         map.insertAdjacentHTML("beforeend", `<div style="color: white; display: block; left: ${parseInt(Math.round(window.playerX / game.world.getHeight() * 100)) - 4}%; top: ${parseInt(Math.round(window.playerY / game.world.getWidth() * 100)) - 12}%; position: absolute;" class='map-display'><i class='fa fa-map-marker'></i></div>`)
 
-                        console.log(ws.data.entities[i], `found after ${timesTried} attempts`);
+                        addLog({
+                            type: 'debug',
+                            parent: 'PlayerFinderHandler',
+                            log: `Target found after ${timesTried} attempt(s).`
+                        });
                         timesTried = 0;
                         ws.close();
                     }
@@ -5468,6 +5565,10 @@ game.ui.components.Intro.onConnectionError = function (errorText = `We were unab
     this.serverElem.classList.add('has-error');
     this.errorElem.style.display = 'block';
     this.errorElem.innerText = errorText;
+
+    getElem("hud-intro-play")[0].innerText = "";
+    getId('playspan').style.margin = '-100px 0px 0px 545px';
+    getId('playspan').style.display = "block";
 }
 
 game.network.connect2 = game.network.connect;
@@ -5490,13 +5591,20 @@ game.network.connect = options => {
         sesWs.onclose = e => {
             sesWs.isOpen = false;
             game.ui.components.Intro.onConnectionError(e.reason);
-            getElem("hud-intro-play")[0].innerText = "";
-            getId('playspan').style.margin = '-100px 0px 0px 545px';
-            getId('playspan').style.display = "block";
+            addLog({
+                type: 'debug',
+                parent: 'SharedWebsocketHandler',
+                log: `Shared Websocket connection closed: ${e.reason ? e.reason : "-"}.`
+            });
         }
 
         if (document.querySelector("#recordSes").checked) {
             sesWs.onopen = () => {
+                addLog({
+                    type: 'debug',
+                    parent: 'SharedWebsocketHandler',
+                    log: `Requested to record connection at session: ${sessionId}.`
+                });
                 sesWs.isOpen = true;
                 sesWs.sendPacket = function(packet) {
                     this.isOpen && this.send(packet);
@@ -5688,10 +5796,19 @@ game.network.connect = options => {
             game.network.socket.send(getRpc.toArrayBuffer());
         })
 
-        sesWs.onopen = () => sesWs.send(simpleStringEncode(`g/${sessionId}/${genUUID()}`));
+        sesWs.onopen = () => {
+            sesWs.send(simpleStringEncode(`g/${sessionId}/${genUUID()}`));
+            addLog({
+                type: 'debug',
+                parent: 'SharedWebsocketHandler',
+                log: `Requested to create connection to session: ${sessionId}.`
+            });
+        }
         return;
     };
     game.network.connect2(options);
 };
+
+
 
 
