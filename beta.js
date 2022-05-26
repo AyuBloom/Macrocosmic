@@ -1242,7 +1242,15 @@ getElem('hud-top-right')[0].insertAdjacentHTML("beforeend", `
         <i class="fa fa-arrow-down fa-2x" style="margin-top: 5px;"></i>
     </a>
 </div>
+<input id="joinWithPsk" type="tel" style="display: none;background-color: rgba(0, 0, 0, 0.4);padding: 4px 5px; border-radius:8px;color: rgba(255,255,255, 1);width: 105%;height:40px;margin: 0 0 5px 0;" placeholder="insert PSK..." class="btn">
 `);
+
+document.querySelector('#joinWithPsk').addEventListener('keyup', (e) => {
+    if (e.key == "Enter" || e.key == "Escape") {
+        e.target.style.display = 'none';
+        if (e.key == "Enter") game.network.sendRpc({name: "JoinPartyByShareKey", partyShareKey: e.target.value});
+    }
+})
 
 /*
 let refrsh = document.createElement('div');
@@ -1372,7 +1380,7 @@ function addLog({parent, log, type}) {
         <p style="margin: 5px 0 0 0;word-break: break-word;">${log}</p>
     `;
     logElem.style.display = "block";
-    logElem.style.margin = '5px 0px 0px';
+    logElem.style.margin = '10px 0px 0px';
 
     loggerGrid.appendChild(logElem);
     loggerGrid.setAttribute('num-of-children', `${++numOfChildren}`);
@@ -1429,6 +1437,8 @@ document.getElementsByClassName('hud-zipp-grid3')[0].onscroll = function() {
 };
 
 */
+
+console.log("%cdon't you dare enter my debugging hell", 'font-size: xx-large;margin: 0 0 20px 5px;');
 
 
 
@@ -1962,6 +1972,19 @@ game.network.addRpcHandler("Dead", (e) => {
      * old score,
      * old wave,
      */
+    const playerScore = game.ui.playerTick.score,
+          playerWave = game.ui.playerTick.wave;
+    if (e.stashDied) {
+        let numOfPlayers = 0;
+        for (let i of game.renderer.npcs.attachments) {
+            if (i.entityClass == 'PlayerEntity') numOfPlayers++;
+        }
+        addLog({
+            type: 'info',
+            parent: 'DeadHandler',
+            log: `Base died with player having ${playerScore.toLocaleString()} score at wave ${playerWave}, ${numOfPlayers} player(s) were around (including party members).`
+        });
+    }
 });
 
 function sellAllByType(type) {
@@ -1973,14 +1996,10 @@ function sellAllByType(type) {
     }
     let sellInterval = () => {
         allBuildings.shift();
-        if (window.sellBreak || allBuildings.length == 0) {
-            console.log('break at this line', allBuildings);
-            return;
-        }
+        if (window.sellBreak || allBuildings.length == 0) return;
         const target = allBuildings[0];
         if (target !== undefined && !game.ui.buildings[target]?.dead) {
             Game.currentGame.network.sendRpc({name: "DeleteBuilding", uid: parseInt(target)});
-            console.log(allBuildings);
             setTimeout(() => { sellInterval(); }, 150);
         }
     }
@@ -3462,32 +3481,11 @@ document.addEventListener("keydown", e => {
     };
 })
 
-/*
-const fullRSS = () => {
-    if(!window.frss) { return; };
-    let resources = ["wood", "stone", "gold"];
-    let pt = game.ui.playerTick;
-    let rc = game.ui.components.Resources;
-    for(let i = 0; i < resources.length; i++) {
-        let rs = resources[i];
-        rc[`${rs}Elem`].innerHTML = Math.round(pt[rs]).toLocaleString("en");
-    };
-    rc.tokensElem.innerHTML = Math.round(pt.token).toLocaleString("en");
-};
-
-let sipt = setInterval(() => {
-    game.ui.addListener('playerTickUpdate', fullRSS);
-}, 10);
-
-
-setTimeout(() => { clearInterval(sipt); }, 90);
-*/
-
 function isEven(number) {
     return number % 2 === 0;
 }
 
-function isEntityOccupied(x, y, {w, h}) {
+function isEntityOccupied(x, y) {
     const cell = game.world.entityGrid.getCellIndexes(x, y, { width: 1, height: 1 });
     const entity = game.world.entityGrid.getEntitiesInCell(cell);
     return Object.keys(entity).length > 0;
@@ -3510,16 +3508,16 @@ function placeWallBlock(blockWidth, blockHeight, data, offset) {
                    (isEven(blockHeight) ? 0 : 1)) / 2 * 48;
              y += 48) {
             if (isOffsetUsed) {
-                if (Math.abs(x) <= offsetFromTarget || Math.abs(y) <= offsetFromTarget) continue;
+                if (Math.abs(y) <= offsetFromTarget) continue;
             }
             const posX = data.x + x,
                   posY = data.y + y,
-                  shouldPlace = !isEntityOccupied(posX, posY, {w: 1, h: 1});
+                  shouldPlace = !isEntityOccupied(posX, posY);
             shouldPlace && game.network.sendPacket(9, {
                 name: "MakeBuilding",
                 type: "Wall",
-                x: data.x + x,
-                y: data.y + y,
+                x: posX,
+                y: posY,
                 yaw: 0
             });
         };
@@ -3542,12 +3540,12 @@ game.network.addEntityUpdateHandler(() => {
         for (let i of game.renderer.npcs.attachments) {
             if (i.entityClass === "PlayerEntity" && (document.querySelector("#autoTrapOptions").value == "pl" ? i.targetTick.partyId !== game.ui.playerPartyId : i.targetTick.uid !== game.world.myUid)) {
                 if (isPointInCircle(i.targetTick.position, game.ui.playerTick.position, 500)) {
-                    const blockWidth = document.querySelector('#blockX').valueAsNumber;
-                    const blockHeight = document.querySelector('#blockY').valueAsNumber;
+                    const blockWidth = (document.querySelector('#blockX').valueAsNumber > 7) ? document.querySelector('#blockX').valueAsNumber : 7;
+                    const blockHeight = (document.querySelector('#blockY').valueAsNumber > 7) ? document.querySelector('#blockY').valueAsNumber : 7;
 
                     const position = i.targetTick.position;
                     const data = { x: Math.round(position.x / 24) * 24, y: Math.round(position.y / 24) * 24 };
-                    placeWallBlock(blockWidth, blockHeight, data);
+                    placeWallBlock(blockWidth, blockHeight, data/*, 1*/);
                 };
             };
         };
@@ -3583,10 +3581,19 @@ shield.bindInputEvents = function () {
         this.tooltipElem = document.getElementById(`hud-tooltip`);
         let clientRect = this.targetElem.getBoundingClientRect(),
             position = {'left': 0, 'top': 0};
-        'top' == this.anchor ? (position.left = clientRect.left + clientRect.width / 0x2 - this.tooltipElem.offsetWidth / 0x2,
-                                position.top = clientRect.top - this.tooltipElem.offsetHeight - 0x14) : `bottom` == this.anchor ? (position.left = clientRect.left + clientRect.width / 0x2 - this.tooltipElem.offsetWidth / 0x2,
-                                                                                                                                   position.top = clientRect.top + clientRect.height + 0x14) : `left` == this.anchor ? (position.left = clientRect.left - this.tooltipElem.offsetWidth - 0x14,
-                                                                                                                                   position.top = clientRect.top + clientRect.height / 0x2 - this.tooltipElem.offsetHeight / 0x2) : `right` == this.anchor && (position.left = clientRect.left + clientRect.width + 0x14, position.top = clientRect.top + clientRect.height / 0x2 - this.tooltipElem.offsetHeight / 0x2);
+        'top' == this.anchor ? (
+            position.left = clientRect.left + clientRect.width / 0x2 - this.tooltipElem.offsetWidth / 0x2,
+            position.top = clientRect.top - this.tooltipElem.offsetHeight - 0x14
+        ) : `bottom` == this.anchor ? (
+            position.left = clientRect.left + clientRect.width / 0x2 - this.tooltipElem.offsetWidth / 0x2,
+            position.top = clientRect.top + clientRect.height + 0x14
+        ) : `left` == this.anchor ? (
+            position.left = clientRect.left - this.tooltipElem.offsetWidth - 0x14,
+            position.top = clientRect.top + clientRect.height / 0x2 - this.tooltipElem.offsetHeight / 0x2
+        ) : `right` == this.anchor && (
+            position.left = clientRect.left + clientRect.width + 0x14,
+            position.top = clientRect.top + clientRect.height / 0x2 - this.tooltipElem.offsetHeight / 0x2
+        );
         this.tooltipElem.className = `hud-tooltip hud-tooltip-` + this.anchor;
         this.tooltipElem.style.left = position.left + 'px';
         this.tooltipElem.style.top = position.top + 'px';
@@ -3684,6 +3691,13 @@ document.addEventListener("keydown", (e) => {
             case "KeyK":
                 getId("4i3").click();
                 break;
+            case "KeyG":
+                setTimeout(() => {
+                    document.querySelector('#joinWithPsk').style.display = 'block';
+                    document.querySelector('#joinWithPsk').focus();
+                    document.querySelector('#joinWithPsk').value = "";
+                }, 100);
+                break;
             case "KeyM":
                 game.network.sendRpc({
                     "name": "BuyItem",
@@ -3740,26 +3754,19 @@ game.network.addEnterWorldHandler((e) => {
 window.sendAitoAlt = () => {
     let aitoInterval = async() => {
         if (!options.aito) return;
-        let { wasm, iframeId } = await fetchWasm('aitoWasm');
+        let { wasm, iframeId, removeWasm } = await fetchWasm('aitoWasm');
+        let isWasmRemoved = false;
         let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
         ws.binaryType = "arraybuffer";
         ws.onclose = () => {
             ws.isclosed = true;
-            try {
-                document.querySelectorAll(`#${iframeId}`).forEach(el => el.remove());
-            } catch {}
+            if (!isWasmRemoved) removeWasm();
         }
         ws.onopen = () => {
             ws.network = new Game.currentGame.networkType();
-            ws.network.sendInput = (t) => {
-                ws.network.sendPacket(3, t);
-            };
-            ws.network.sendRpc = (t) => {
-                ws.network.sendPacket(9, t);
-            };
-            ws.network.sendPacket = (e, t) => {
-                !ws.isclosed && ws.send(ws.network.codec.encode(e, t));
-            };
+            ws.network.sendInput = (t) => ws.network.sendPacket(3, t);
+            ws.network.sendRpc = (t) => ws.network.sendPacket(9, t);
+            ws.network.sendPacket = (e, t) => { !ws.isclosed && ws.send(ws.network.codec.encode(e, t)); };
             ws.network.codec.decodePreEnterWorldResponse = function (preEnterWorld) {
                 wasm._MakeBlendField(0x18, 0x84);
                 for (var _228 = wasm._MakeBlendField(228, preEnterWorld.remaining()),
@@ -3790,6 +3797,9 @@ window.sendAitoAlt = () => {
             if (ws.data.opcode === 4) {
                 ws.network.sendPacket(6, {});
                 ws.network.sendInput({left: 1, up: 1});
+
+                removeWasm();
+                isWasmRemoved = true;
             }
             if (ws.data.opcode === 5) {
                 ws.network.sendPacket(4, { displayName: 'https://arcaea.lowiro.com/', extra: ws.data.extra });
@@ -3804,10 +3814,6 @@ window.sendAitoAlt = () => {
             };
             if (ws.data.uid) ws.uid = ws.data.uid;
             if (ws.data.name) ws.dataType = ws.data;
-/*             if (!options.aito && !ws.isclosed) {
-                ws.isclosed = true;
-                ws.close();
-            } */
             if (ws.data.name == "DayCycle") {
                 ws.isDay = ws.data.response.isDay;
                 if (!ws.isDay && !ws.isclosed) {
@@ -3853,14 +3859,12 @@ window.playerFinder = () => {
         if (!options.finder) return;
         let ver = false;
         let playerData = game.ui.components.Leaderboard.leaderboardData[rank - 1];
-        let { wasm, iframeId } = await fetchWasm(`finderWasm${timesTried}`);
+        let { wasm, iframeId, removeWasm } = await fetchWasm(`finderWasm${timesTried}`);
         let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
         ws.binaryType = "arraybuffer";
         ws.onclose = () => {
             ws.isclosed = true;
-            try {
-                document.getElementById(`${iframeId}`).remove();
-            } catch {}
+            removeWasm();
         }
         ws.onopen = (data) => {
             ws.network = new Game.currentGame.networkType();
@@ -3950,12 +3954,9 @@ window.playerFinder = () => {
                 }
                 ws.network.sendInput({left: 1, up: 1});
             }
-            if (ws.data.name == "DayCycle") {
-                ws.isDay = ws.data.response.isDay;
-            }
-            if (ws.data.name == "Dead") {
-                ws.network.sendInput({respawn: 1});
-            }
+            if (ws.data.name == "DayCycle") ws.isDay = ws.data.response.isDay;
+            if (ws.data.name == "Dead") ws.network.sendInput({respawn: 1});
+            if (ws.data.name == "SetPartyList" && ws.isDay) game.network.emitter.emit(packet_enum[ws.data.opcode], ws.data);
             if (ver && !ws.isclosed) {
                 ws.isclosed = true;
                 timesTried++;
@@ -4042,7 +4043,8 @@ class WAssembly {
 
     #a_a(a) {
         if (parent.wasmTrace) console.log('%c [TRACE]', 'color: #FFA500;', 'A / A - Memory Allocation');
-        let _0x37c280 = parent.eval(this.#decodeParam(a));
+        const decoded = this.#decodeParam(a);
+        let _0x37c280 = parent.eval(decoded);
 
         if (!_0x37c280) return 0;
         _0x37c280 += '';
@@ -4572,7 +4574,7 @@ window.sendWs = async() => {
 
     ws.onopen = () => {
         ws.network = new game.networkType();
-        const imposter = {5: [], 6: []};
+        const imposter = {5: [], 6: [], region: game.network.connectionOptions.region};
         ws.network.codec.decodePreEnterWorldResponse = function (preEnterWorld) {
             wasm._MakeBlendField(0x18, 0x84);
             for (var _228 = wasm._MakeBlendField(228, preEnterWorld.remaining()),
@@ -4655,7 +4657,7 @@ window.sendWs = async() => {
             document.addEventListener('mousemove', mousemove => {
                 if (ws.isOnControl) {
                     if (!ws.isclosed) {
-                        if (ws.lockAim) {
+/*                         if (ws.lockAim) {
                             if (ws.myPlayer?.position) {
                                 mouseMoved(
                                     game.inputPacketCreator.screenToYaw(
@@ -4671,23 +4673,17 @@ window.sendWs = async() => {
                                 );
                             }
                             return;
-                        }
+                        } */
                         mousePosition3 = game.renderer.screenToWorld(mousemove.clientX, mousemove.clientY);
-                        if (ws.myPlayer) {
-                            if (ws.myPlayer.position) {
-                                mouseMoved(
-                                    game.inputPacketCreator.screenToYaw(
-                                        (-ws.myPlayer.position.x + mousePosition3.x) * 100,
-                                        (-ws.myPlayer.position.y + mousePosition3.y) * 100
-                                    ),
-                                    Math.floor(mousePosition3.x),
-                                    Math.floor(mousePosition3.y),
-                                    Math.floor(game.inputPacketCreator.distanceToCenter(
-                                        (-ws.myPlayer.position.x + mousePosition3.x) * 100,
-                                        (-ws.myPlayer.position.y + mousePosition3.y) * 100
-                                    ) / 100)
-                                );
-                            }
+                        if (ws.myPlayer?.position) {
+                            const xPos = (-ws.myPlayer.position.x + mousePosition3.x) * 100,
+                                  yPos = (-ws.myPlayer.position.y + mousePosition3.y) * 100;
+                            mouseMoved(
+                                game.inputPacketCreator.screenToYaw(xPos, yPos),
+                                Math.floor(mousePosition3.x),
+                                Math.floor(mousePosition3.y),
+                                Math.floor(game.inputPacketCreator.distanceToCenter(xPos, yPos) / 100)
+                            );
                         }
                     }
                 }
@@ -4976,7 +4972,7 @@ window.sendWs = async() => {
         if (ws.data.opcode === 4) ws.network.onEnterWorld(ws.data);
         if (ws.data.opcode === 5) {
             console.log('MBF 5'); altname++;
-            ws.network.sendPacket(4, {displayName: ws.altName/*`${ws.cloneId}`*/, extra: ws.data.extra});
+            ws.network.sendPacket(4, {displayName: /*ws.altName || `${ws.cloneId}`*/ game.options.nickname, extra: ws.data.extra});
             // game.world.myUid = null;
 
             setTimeout(() => {
@@ -5609,7 +5605,7 @@ game.network.connect = options => {
                 sesWs.sendPacket = function(packet) {
                     this.isOpen && this.send(packet);
                 }
-                sesWs.sendPacket(simpleStringEncode(`r/${sessionId}/${genUUID()}`));
+                sesWs.sendPacket(simpleStringEncode(`r/${sessionId}/${genUUID()}/5`));
 
                 game.network.codec.enterRpcBuffer = {};
 
@@ -5632,7 +5628,7 @@ game.network.connect = options => {
                     sesWs.sendPacket(enterWorld.buffer);
                 }
 
-                game.network.codec.sendCurrentEntities = function() {
+                game.network.codec.sendCurrentEntities = function(followerIndex) {
                     const newEntities = {};
                     for (let i in game.world.replicator.currentTick.entities) {
                         newEntities[i] = {};
@@ -5640,6 +5636,7 @@ game.network.connect = options => {
                     };
                     const entityBuffer = new dcodeIO.ByteBuffer()
                         .writeUint8(2)
+                        .writeUint8(followerIndex)
                         .writeString(JSON.stringify(newEntities))
                         .flip();
                     sesWs.sendPacket(entityBuffer.toArrayBuffer(true));
@@ -5701,15 +5698,16 @@ game.network.connect = options => {
                     return;
                 }
                 if (packet == 4) {
-                    game.network.codec.sendCurrentEntities();
+                    const followerIndex = buffer.readUint8();
+                    game.network.codec.sendCurrentEntities(followerIndex);
                     return;
                 }
                 if (packet == 3 && window.seeInput) {
                     buffer.offset = 2;
                     const input = JSON.parse(buffer.readString(buffer.remaining()));
-                    if (input.worldX) {
-                        const reversedAim = game.inputPacketCreator.screenToYaw((input.worldX - game.ui.playerTick.position.x) * 100, (input.worldY - game.ui.playerTick.position.y) * 100);
-                        game.inputPacketCreator.lastAnyYaw = reversedAim;
+                    if (input.mouseMoved || input.mouseMovedWhileDown) {
+//                        const reversedAim = game.inputPacketCreator.screenToYaw((input.worldX - game.ui.playerTick.position.x) * 100, (input.worldY - game.ui.playerTick.position.y) * 100);
+                        game.inputPacketCreator.lastAnyYaw = input[input.mouseMoved ? 'mouseMoved' : 'mouseMovedWhileDown'];
                     }
                 }
                 if (packet == 2) {
@@ -5722,7 +5720,11 @@ game.network.connect = options => {
                     return;
                 }
                 if (packet == 7) {
-                    const _buffer = new dcodeIO.ByteBuffer().writeUint8(7).flip();
+                    const followerIndex = buffer.readUint8();
+                    const _buffer = new dcodeIO.ByteBuffer()
+                        .writeUint8(7)
+                        .writeUint8(followerIndex)
+                        .flip();
                     sesWs.sendPacket(_buffer.toArrayBuffer());
                     return;
                 }
@@ -5768,6 +5770,7 @@ game.network.connect = options => {
                     this[uint16_enums[attribute_type]] = JSON.parse(t.readString(t.remaining()));
                     break;
                 case 2:
+                    t.readUint8();
                     newEntities = JSON.parse(t.toString('utf8'));
                     for (let uid in newEntities) game.world.createEntity(newEntities[uid]);
                     break;
@@ -5808,6 +5811,7 @@ game.network.connect = options => {
     };
     game.network.connect2(options);
 };
+
 
 
 
