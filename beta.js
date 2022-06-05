@@ -3857,14 +3857,15 @@ window.playerFinder = () => {
 
     let scanInterval = async() => {
         if (!options.finder) return;
-        let ver = false;
+        let ver = false,
+            isWasmDestroyed = false;
         let playerData = game.ui.components.Leaderboard.leaderboardData[rank - 1];
         let { wasm, iframeId, removeWasm } = await fetchWasm(`finderWasm${timesTried}`);
         let ws = new WebSocket(`ws://${game.network.connectionOptions.hostname}:80`);
         ws.binaryType = "arraybuffer";
         ws.onclose = () => {
             ws.isclosed = true;
-            removeWasm();
+            !isWasmDestroyed && removeWasm();
         }
         ws.onopen = (data) => {
             ws.network = new Game.currentGame.networkType();
@@ -3894,6 +3895,9 @@ window.playerFinder = () => {
                 for (var i = 0; i < 16; i++) {
                     buffer.writeUint8(wasm.HEAPU8[_0x4f5914 + i]);
                 }
+
+                removeWasm();
+                isWasmDestroyed = true;
             }
         }
         ws.onmessage = msg => {
@@ -4521,7 +4525,6 @@ window.sendWs = async() => {
         worldY: 1,
         distance: 1
     };
-    ws.aimingYaw = 1;
 
     function buildBaseFromStr(design) {
         const towers = design.split(";");
@@ -4593,6 +4596,47 @@ window.sendWs = async() => {
             };
         };
 
+        ws.interval = {
+            intervalStart: new Date(),
+
+            intervalListeners: [],
+            addListener: function(func) {
+                this.intervalListeners.push(func);
+            }
+        }
+        ws.interval.secondInterval = function() {
+            const delta = new Date().getTime() - this.intervalStart.getTime();
+            if (delta <= 1000) return;
+
+            this.intervalStart = new Date();
+            for (let listener of this.intervalListeners) listener();
+        }
+
+        ws.interval.addListener(() => {
+            if (options.spamChat) {
+                if (getId('4i2').value === "") {
+                    const randomSpamText = [`${garbageGenerator()} BIG RAID ${garbageGenerator()}`, `?verify`, "hi", "ez", "Super Idol的笑容都没你的甜八月正午的阳光都没你耀眼热爱 105 °C的你滴滴清纯的蒸馏水"];
+                    const randomSpam = Math.floor(Math.random() * randomSpamText.length);
+                    let randomText = randomSpamText[randomSpam];
+                    ws.network.sendRpc({name: "SendChatMessage", channel: "Local", message: `${randomText}`});
+                } else {
+                    ws.network.sendRpc({name: "SendChatMessage", channel: "Local", message: `${garbageGenerator()} ${getId('4i2').value} ${garbageGenerator()}`});
+                };
+            };
+            if (window.Join4Tier2Spear === true) {
+                if (!ws.inventory.Spear) {
+                    if (game.ui.playerPartyMembers.length < 5) {
+                        ws.network.sendRpc({name: 'JoinPartyByShareKey', partyShareKey: game.ui.playerPartyShareKey});
+                        if (ws.myPlayer.gold >= spearCostArray[document.getElementById('speartier').value - 1]) {
+                            for (let i = 1; i <= document.getElementById('speartier').value; i++) ws.network.sendRpc({name: "BuyItem", itemName: "Spear", tier: i});
+                            ws.network.sendRpc({name: "EquipItem", itemName: "Spear", tier: ws.inventory.Spear.tier});
+                            ws.network.sendRpc({name: 'LeaveParty'});
+                        };
+                    };
+                }
+            };
+        });
+
         ws.network.codec.encodeEnterWorld2 = function(buffer) {
             var _0x4f5914 = wasm._MakeBlendField(187, 22);
             for (var i = 0; i < 16; i++) {
@@ -4640,7 +4684,7 @@ window.sendWs = async() => {
             ws.mouseUp = 1;
             ws.mouseDown = 0;
             function mouseMoved(e, x, y, d) {
-                ws.aimingYaw = e;
+                if (e === ws.mouseData.yaw /* if current yaw is same as last yaw */) return;
                 ws.mouseData = {
                     yaw: e,
                     worldX: x,
@@ -4968,6 +5012,7 @@ window.sendWs = async() => {
         };
     }
     ws.onmessage = (msg) => {
+        ws.interval.secondInterval();
         ws.data = ws.network.codec.decode(msg.data);
         if (ws.data.opcode === 4) ws.network.onEnterWorld(ws.data);
         if (ws.data.opcode === 5) {
@@ -5376,47 +5421,6 @@ window.sendWs = async() => {
                     }
                 }
             }
-            if (options.spamChat) {
-                if (getId('4i2').value === "") {
-                    const randomSpamText = [`${garbageGenerator()} BIG RAID ${garbageGenerator()}`, `?verify`, "hi", "ez", "Super Idol的笑容都没你的甜八月正午的阳光都没你耀眼热爱 105 °C的你滴滴清纯的蒸馏水"];
-                    const randomSpam = Math.floor(Math.random() * randomSpamText.length);
-                    let randomText = randomSpamText[randomSpam];
-                    ws.network.sendRpc({name: "SendChatMessage", channel: "Local", message: `${randomText}`});
-                } else {
-                    ws.network.sendRpc({name: "SendChatMessage", channel: "Local", message: `${garbageGenerator()} ${getId('4i2').value} ${garbageGenerator()}`});
-                };
-            };
-            if (window.Join4Tier2Spear === true) {
-                if (!ws.inventory.Spear) {
-                    ws.network.sendRpc({name: 'JoinPartyByShareKey', partyShareKey: game.ui.playerPartyShareKey});
-                    if (ws.myPlayer.gold >= spearCostArray[document.getElementById('speartier').value - 1]) {
-                        for (let i = 1; i <= tier; i++) ws.network.sendRpc({name: "BuyItem", itemName: "Spear", tier: i});
-                        ws.network.sendRpc({name: "EquipItem", itemName: "Spear", tier: ws.inventory.Spear.tier});
-                        ws.network.sendRpc({name: 'LeaveParty'});
-                    };
-                    /*
-                } else {
-                    if (ws.inventory.Spear.tier < document.getElementById('speartier').value) {
-                        ws.network.sendRpc({name: 'JoinPartyByShareKey', partyShareKey: game.ui.playerPartyShareKey});
-                        // calculating total spear price
-                        let totalPrice =+ game.ui.itemSchema.Spear.goldCosts[ws.inventory.Spear.tier];
-                        let priceLoop = () => {
-                            let i = 1;
-                            totalPrice + game.ui.itemSchema.Spear.goldCosts[ws.inventory.Spear.tier + i];
-                            ++i;
-                            if (i < document.getElementById('speartier').value) {
-                                setTimeout(() => priceLoop, 50);
-                            } else {
-                                Promise.resolve();
-                            }
-                        }
-                        priceLoop();
-                        if ()
-                    }
-                    }
-                    */
-                }
-            };
             if (ws.ahrc) {
                 for(let uid in ws.buildings) {
                     let obj = ws.buildings[uid];
